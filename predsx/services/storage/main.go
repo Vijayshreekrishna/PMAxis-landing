@@ -209,7 +209,7 @@ func ensureSchemas(ctx context.Context, ch clickhouse.Interface, log logger.Inte
 			status String, exchange String, event_id String, start_time DateTime64(3),
 			end_time DateTime64(3), outcomes String, created_at DateTime64(3), raw String,
 			tags String, category String, series String
-		) ENGINE = MergeTree() ORDER BY (market_id, created_at)
+		) ENGINE = ReplacingMergeTree(created_at) ORDER BY market_id
 	`)
 
 	// Backfill new taxonomy columns onto pre-existing market_metadata tables.

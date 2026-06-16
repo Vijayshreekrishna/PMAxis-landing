@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"net/http"
 	"time"
@@ -16,6 +17,9 @@ import (
 	"github.com/predsx/predsx/services/api/ws"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+//go:embed openapi.json
+var openapiSpec []byte
 
 func main() {
 	svc := service.NewBaseService("api")
@@ -74,6 +78,101 @@ func main() {
 
 		// Real-time Kafka → WebSocket broadcaster
 		go ws.StartKafkaBroadcaster(ctx, hub, kafkaBrokers, svc.Logger)
+
+		// API Docs — Swagger UI at /docs, spec at /openapi.json
+		r.HandleFunc("/openapi.json", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Write(openapiSpec)
+		}).Methods("GET")
+		r.HandleFunc("/docs", func(w http.ResponseWriter, r *http.Request) {
+			// Override the global CSP — this page intentionally loads external scripts.
+			w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; style-src https://cdn.jsdelivr.net 'unsafe-inline'; img-src 'self' data: https:; connect-src *; font-src https://cdn.jsdelivr.net data:; worker-src blob:")
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte(`<!DOCTYPE html>
+<html>
+<head>
+  <title>PredSX API Docs</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; }
+    #theme-bar {
+      position: fixed;
+      top: 12px;
+      right: 16px;
+      z-index: 99999;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(15,15,25,0.75);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
+      padding: 6px 12px;
+      backdrop-filter: blur(10px);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 13px;
+      color: rgba(255,255,255,0.8);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }
+    #theme-bar select {
+      background: transparent;
+      border: none;
+      color: rgba(255,255,255,0.9);
+      font-size: 13px;
+      cursor: pointer;
+      outline: none;
+      padding: 0 4px;
+    }
+    #theme-bar select option { background: #111; color: #fff; }
+  </style>
+</head>
+<body>
+  <div id="theme-bar">
+    <span>🎨 Theme</span>
+    <select id="theme-select" onchange="applyTheme(this.value)">
+      <option value="deepSpace">Deep Space</option>
+      <option value="purple">Purple</option>
+      <option value="moon">Moon</option>
+      <option value="bluePlanet">Blue Planet</option>
+      <option value="saturn">Saturn</option>
+      <option value="solarized">Solarized</option>
+      <option value="default">Default</option>
+    </select>
+  </div>
+
+  <script id="api-reference" data-url="/openapi.json"></script>
+
+  <script>
+    var ROUNDED_CSS = [
+      '.scalar-card { border-radius: 14px !important; }',
+      '.scalar-button, button { border-radius: 8px !important; }',
+      'input, textarea, select { border-radius: 7px !important; }',
+      '.endpoint-details-card { border-radius: 12px !important; }',
+      '.scalar-api-client__send-button { border-radius: 8px !important; }',
+      'code, pre { border-radius: 8px !important; }',
+      '.tag-section { border-radius: 14px !important; }',
+    ].join('\n');
+
+    function buildConfig(theme) {
+      return JSON.stringify({ theme: theme, layout: 'modern', customCss: ROUNDED_CSS });
+    }
+
+    function applyTheme(theme) {
+      localStorage.setItem('predsx-docs-theme', theme);
+      document.getElementById('api-reference').setAttribute('data-configuration', buildConfig(theme));
+    }
+
+    var saved = localStorage.getItem('predsx-docs-theme') || 'deepSpace';
+    document.getElementById('theme-select').value = saved;
+    document.getElementById('api-reference').setAttribute('data-configuration', buildConfig(saved));
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+</body>
+</html>`))
+		}).Methods("GET")
 
 		// Debug Endpoints — gated by X-Debug-Token header (set DEBUG_TOKEN env var)
 		debug := r.PathPrefix("/debug").Subrouter()

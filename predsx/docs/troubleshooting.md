@@ -231,6 +231,100 @@ All 5 images (`predsx-api`, `predsx-discovery`, `predsx-ingestion`, `predsx-proc
 
 ---
 
+## 11. ClickHouse OOM on startup — orphaned store directories
+
+**Symptom:** ClickHouse container restarts repeatedly. Logs show:
+```
+Memory limit (total) exceeded: ... maximum: 1.50 GiB
+```
+Even after restart, ClickHouse cannot accept connections. `docker stats` shows RSS near the container's memory limit before any queries run.
+
+**Root cause:** Every time a ClickHouse table is dropped and recreated (during development or schema migrations), the old data directory — named by a UUID — is left on disk under `/var/lib/clickhouse/store/`. ClickHouse does not automatically delete these. On startup, ClickHouse loads metadata for all directories in `store/`, including orphaned ones, consuming significant memory before any queries are run.
+
+**Diagnosis:**
+```bash
+# Enter the volume with Alpine (while clickhouse is stopped)
+docker stop package-clickhouse-1
+docker run --rm -it -v package_clickhouse_data:/data alpine sh
+
+# Size of store directories
+du -sh /data/store/*/*/ 2>/dev/null | sort -rh | head -20
+
+# Live table UUIDs (from metadata)
+ls /data/metadata/default/
+
+# Compare — any UUID in /data/store/ not referenced by a .sql file in /data/metadata/default/ is orphaned
+```
+
+**Fix:**
+```bash
+# Inside the Alpine container
+rm -rf /data/store/<orphaned-uuid>/
+# Repeat for each orphaned directory
+exit
+
+docker start package-clickhouse-1
+```
+
+After cleanup, restart ClickHouse. RSS will be a fraction of the container limit and it will start accepting connections normally.
+
+**Prevention:** Run the store size query periodically (see [clickhouse-queries.md](clickhouse-queries.md)). If `store/` is significantly larger than the sum of live table data, orphaned dirs have accumulated.
+
+---
+
+## 12. `/v1/categories` and `/v1/tags` return `[]`
+
+**Symptom:** Both endpoints return an empty array even though `market_metadata` has 100k+ rows.
+
+**Verification:**
+```bash
+# Check if category is actually populated in any rows
+docker exec -it package-clickhouse-1 clickhouse-client \
+  --query "SELECT count() FROM default.market_metadata WHERE category != ''"
+# Returns 0
+```
+
+**Root cause:** Polymarket Gamma API returns `"tags": null` on individual market objects (`/markets` endpoint). The discovery service used `m.Tags` (market-level) for `extractTagSlugs()` and `extractCategory()`, which always returned nil/empty. Tags exist at the **parent event level** in the Gamma `/events` response, but `PolymarketEvent` struct was missing a `Tags` field — so event-level tags were never captured.
+
+**Fix:** In `services/discovery/main.go`:
+1. Added `Tags []PolymarketTag \`json:"tags"\`` to `PolymarketEvent` struct
+2. In `discoverEvents`, fall back to `ev.Tags` when the market's own `m.Tags` is empty
+
+After deploying the fixed image and waiting one poll cycle (~60s), categories and tags begin populating.
+
+**Note:** `series` is unaffected — it comes from `groupItemTitle` which Polymarket does populate. If tags are still empty after a fix deploy, confirm the fix is deployed: `docker compose logs hub-discovery --tail=20 | grep "event market"`.
+
+---
+
+## 13. Debug endpoints return "debug endpoints disabled"
+
+**Symptom:**
+```
+GET /debug/markets
+→ 403 debug endpoints disabled
+```
+
+**Root cause:** The `/debug/*` routes and `/metrics` are gated by `middleware.DebugAuth`, which checks for `DEBUG_TOKEN` env var. If `DEBUG_TOKEN` is not set, the middleware rejects all requests with 403.
+
+**Fix:** Add `DEBUG_TOKEN` to the `.env` file and restart `hub-api`:
+```bash
+echo "DEBUG_TOKEN=your-secret-token" >> ~/predsx/package/.env
+cd ~/predsx/package && docker compose up -d --no-deps hub-api
+```
+
+**Usage:** Pass the token in requests:
+```bash
+# As a header
+curl -H "X-Debug-Token: your-secret-token" http://YOUR_VPS_IP:8088/debug/markets
+
+# As a query param
+curl "http://YOUR_VPS_IP:8088/debug/markets?debug_token=your-secret-token"
+```
+
+**Security note:** Do not use a guessable token. The debug endpoints expose raw ClickHouse data and orderbook state — they should not be accessible without authentication.
+
+---
+
 ## 10. Hub shows `(unhealthy)` in `docker ps`
 
 **Symptom:**

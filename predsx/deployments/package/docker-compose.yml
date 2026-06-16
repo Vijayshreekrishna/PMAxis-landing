@@ -36,8 +36,10 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_NUM_PARTITIONS: 6
       KAFKA_HEAP_OPTS: "-Xms256M -Xmx256M"
-      KAFKA_LOG_RETENTION_HOURS: 2
-      KAFKA_LOG_RETENTION_BYTES: 1073741824
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_RETENTION_BYTES: 536870912
+      KAFKA_LOG_SEGMENT_BYTES: 104857600
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
       KAFKA_JVM_PERFORMANCE_OPTS: "-XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:+ExplicitGCInvokesConcurrent -XX:MaxMetaspaceSize=96m -XX:+HeapDumpOnOutOfMemoryError"
     volumes:
       - kafka_data:/var/lib/kafka/data
@@ -264,6 +266,23 @@ services:
       retries: 3
       start_period: 20s
 
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    restart: always
+    ports:
+      - "3001:3001"
+    volumes:
+      - uptime_kuma_data:/app/data
+    deploy:
+      resources:
+        limits:
+          memory: 150M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   hub-api:
     image: predsx-api:latest
     restart: always
@@ -305,3 +324,4 @@ volumes:
   kafka_data:
   zookeeper_data:
   zookeeper_log:
+  uptime_kuma_data:

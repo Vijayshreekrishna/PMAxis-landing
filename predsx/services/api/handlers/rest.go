@@ -110,8 +110,11 @@ func (h *APIHandler) getActivityRankedMarkets(ctx context.Context, exchange stri
 		return nil
 	}
 
-	queryLimit := target * 10
-	if queryLimit < 500 {
+	queryLimit := target * 3
+	if queryLimit < 100 {
+		queryLimit = 100
+	}
+	if queryLimit > 500 {
 		queryLimit = 500
 	}
 
@@ -119,10 +122,11 @@ func (h *APIHandler) getActivityRankedMarkets(ctx context.Context, exchange stri
 	rows, err := h.ClickHouse.Query(ctx, `
 		SELECT market_id, max(timestamp) AS last_seen
 		FROM price_history_1m
+		WHERE timestamp >= ?
 		GROUP BY market_id
 		ORDER BY last_seen DESC
 		LIMIT ?
-	`, queryLimit)
+	`, time.Now().Add(-7*24*time.Hour), queryLimit)
 	if err != nil {
 		h.Logger.Error("activity market query failed", "error", err)
 		return results
@@ -217,14 +221,17 @@ func (h *APIHandler) getRecentMarkets(ctx context.Context, exchange string, stat
 			market_id, slug, title, question, condition_id,
 			status, exchange, event_id,
 			start_time, end_time, outcomes, raw
-		FROM market_metadata
+		FROM market_metadata FINAL
 	`
 	if len(filters) > 0 {
 		query += " WHERE " + strings.Join(filters, " AND ")
 	}
 	query += " ORDER BY created_at DESC LIMIT ?"
-	scanLimit := limit * 5
-	if scanLimit < 200 {
+	scanLimit := limit * 2
+	if scanLimit < 50 {
+		scanLimit = 50
+	}
+	if scanLimit > 200 {
 		scanLimit = 200
 	}
 	args = append(args, scanLimit)
@@ -313,7 +320,7 @@ func (h *APIHandler) getFilteredMarkets(ctx context.Context, exchange, status, c
 	query := `
 		SELECT market_id, slug, title, question, condition_id, status, exchange, event_id,
 		       start_time, end_time, outcomes
-		FROM market_metadata
+		FROM market_metadata FINAL
 	`
 	if len(filters) > 0 {
 		query += " WHERE " + strings.Join(filters, " AND ")
@@ -999,7 +1006,7 @@ func (h *APIHandler) getMarketMetadata(ctx context.Context, marketID string) map
 	query := `
 		SELECT slug, title, question, condition_id, status, exchange, event_id,
 			start_time, end_time, outcomes, raw, tags, category, series
-		FROM market_metadata
+		FROM market_metadata FINAL
 		WHERE market_id = ?
 		ORDER BY created_at DESC
 		LIMIT 1
@@ -1435,7 +1442,7 @@ func (h *APIHandler) SearchMarkets(w http.ResponseWriter, r *http.Request) {
 	query := `
 		SELECT market_id, slug, title, question, condition_id, status, exchange, event_id,
 		       start_time, end_time, outcomes
-		FROM market_metadata
+		FROM market_metadata FINAL
 		WHERE (positionCaseInsensitive(title, ?) > 0 OR positionCaseInsensitive(question, ?) > 0)
 	`
 	args := []interface{}{q, q}
@@ -1515,13 +1522,17 @@ func (h *APIHandler) GetTopMarkets(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var cutoff time.Time
+	var priceTable string
 	switch period {
 	case "1h":
 		cutoff = time.Now().Add(-1 * time.Hour)
+		priceTable = "price_history_1m"
 	case "7d":
 		cutoff = time.Now().Add(-7 * 24 * time.Hour)
+		priceTable = "price_history_1h"
 	default:
 		cutoff = time.Now().Add(-24 * time.Hour)
+		priceTable = "price_history_1h"
 	}
 
 	var orderCol string
@@ -1534,12 +1545,12 @@ func (h *APIHandler) GetTopMarkets(w http.ResponseWriter, r *http.Request) {
 
 	query := fmt.Sprintf(`
 		SELECT market_id, sum(volume) AS total_volume, sum(trade_count) AS total_trades
-		FROM price_history_1m
+		FROM %s
 		WHERE timestamp >= ?
 		GROUP BY market_id
 		ORDER BY %s DESC
 		LIMIT ?
-	`, orderCol)
+	`, priceTable, orderCol)
 
 	rows, err := h.ClickHouse.Query(ctx, query, cutoff, limit)
 	if err != nil {
@@ -1771,7 +1782,7 @@ func (h *APIHandler) GetRelatedMarkets(w http.ResponseWriter, r *http.Request) {
 	query := `
 		SELECT market_id, slug, title, question, condition_id, status, exchange, event_id,
 		       start_time, end_time, outcomes
-		FROM market_metadata
+		FROM market_metadata FINAL
 		WHERE event_id = ? AND market_id != ?
 		ORDER BY created_at DESC
 		LIMIT ?

@@ -175,7 +175,7 @@ To prevent 100% disk usage crashes (observed in earlier 48-hour VPS runs):
 | Mechanism | Setting | Purpose |
 |---|---|---|
 | Docker log rotation | Max 10 MB × 3 files per service | Caps container log disk use |
-| Kafka retention | **2-hour TTL**, 1 GB max | Transit pipe only — not for replay |
+| Kafka retention | **7-day TTL** (`168h`), **512 MB max per partition**, 100 MB segment size | Transit pipe only — not for replay. Topic-level override on `predsx.ws.raw` keeps raw WS data to 24h / 300 MB per partition |
 | Redis | In-memory only (`--save "" --appendonly no`), 64 MB cap, LRU eviction | Pure cache layer, no disk writes |
 | ClickHouse TTL | See table below | Auto-purges stale partitions |
 
@@ -189,8 +189,8 @@ To prevent 100% disk usage crashes (observed in earlier 48-hour VPS runs):
 | `onchain_trades` | **14 days** | On-chain Polygon events |
 | `market_metrics` | **2 days** | Aggregated per-market metrics |
 | `market_metadata` | **permanent** | Market registry — never expires |
-| `price_history_1m` | permanent (SummingMergeTree) | 1-minute OHLCV candles |
-| `price_history_1h` | permanent (SummingMergeTree) | 1-hour OHLCV candles |
+| `price_history_1m` | **30 days** | 1-minute OHLCV candles — high volume, short analytical window |
+| `price_history_1h` | **90 days** | 1-hour OHLCV candles — longer retention for trend analysis |
 
 TTLs are enforced by ClickHouse's `MergeTree` engine and applied automatically — no manual cleanup needed. TTL clauses are defined inline in `services/storage/main.go:ensureSchemas()`, not in `deployments/clickhouse/init.sql` (that file is a stale reference copy and is not mounted by Docker).
 
@@ -549,6 +549,224 @@ Fix: Changed `rest.go` line 333 from `predsx:price:` to `live:price:`.
 
 ---
 
+### Stage 16 — VPS Disk Spike: Kafka + ClickHouse Cleanup
+
+A disk usage alert fired at 83% (swap 53%) roughly 4 weeks after first VPS deploy. Root causes and fixes:
+
+**Cause 1 — Kafka `predsx.ws.raw` topic grew to 7.5 GB (no per-topic limits)**
+
+The global `KAFKA_LOG_RETENTION_BYTES` of 1 GB applied per *partition*. With 6 partitions, ws.raw alone could hold 6 GB before eviction. Raw WebSocket payloads have no replay value; the topic is a transit pipe only.
+
+Fix: Set topic-level overrides at runtime + made them permanent in `docker-compose.yml`:
+```bash
+kafka-topics --bootstrap-server localhost:9092 --alter \
+  --topic predsx.ws.raw \
+  --config retention.ms=86400000 \
+  --config retention.bytes=314572800 \
+  --config segment.bytes=104857600
+```
+Also updated broker-level defaults in compose:
+```yaml
+KAFKA_LOG_RETENTION_HOURS: 168       # was: 2 (applied per partition, too permissive)
+KAFKA_LOG_RETENTION_BYTES: 536870912 # 512 MB per partition
+KAFKA_LOG_SEGMENT_BYTES: 104857600   # 100 MB — allows earlier cleanup
+```
+
+**Cause 2 — ClickHouse 6.4 GB of orphaned store directories**
+
+Every time a ClickHouse table is dropped and recreated, the old data directory (named by UUID) is left on disk. ClickHouse does not auto-delete these. Over time, dropping/recreating tables during development left 6.4 GB of unreferenced UUID directories under `/var/lib/clickhouse/store/`.
+
+These directories also loaded into ClickHouse memory on startup, pushing RSS to 1.31–1.48 GB against a 1.5 GB container limit — causing intermittent OOM restarts.
+
+Fix:
+1. Stop ClickHouse container
+2. Mount the volume with Alpine: `docker run --rm -it -v package_clickhouse_data:/data alpine sh`
+3. List tables that actually exist in metadata: `ls /data/metadata/default/`
+4. Compare against `ls /data/store/` — any UUID subdir not referenced by a live table is orphaned
+5. Delete orphaned dirs: `rm -rf /data/store/<uuid>/`
+6. Restart ClickHouse — RSS dropped to ~200 MB, all OOM restarts stopped
+
+After cleanup: ClickHouse store went from 6.7 GB → 193 MB. Total disk dropped from 83% → 41%.
+
+**Cause 3 — `price_history_1m` and `price_history_1h` had no TTL**
+
+These tables accumulated candles indefinitely. Added TTL in `services/storage/main.go`:
+- `price_history_1m`: 30-day TTL
+- `price_history_1h`: 90-day TTL
+
+TTL runs during background MergeTree merges — no manual cleanup needed. Do not run `OPTIMIZE TABLE FINAL` on these tables on a low-RAM VPS; it triggers an in-memory merge of all parts and will OOM.
+
+---
+
+### Stage 17 — Tags & Category Pipeline Fix
+
+`/v1/categories` and `/v1/tags` returned `[]` despite 112k+ rows in `market_metadata`.
+
+**Root cause:** Polymarket Gamma API returns `"tags": null` on individual market objects. The discovery service was using `m.Tags` (the market-level field) for both paths — `extractTagSlugs(m.Tags)` and `extractCategory(m.Tags)` — which always produced nil/empty.
+
+Tags exist at the **event level** (the parent `PolymarketEvent`), not on sub-markets. The `PolymarketEvent` struct was missing a `Tags` field entirely, so event-level tags were never captured.
+
+**Fix in `services/discovery/main.go`:**
+
+1. Added `Tags []PolymarketTag \`json:"tags"\`` to `PolymarketEvent` struct
+2. In `discoverEvents`, fall back to `ev.Tags` when `m.Tags` is empty:
+
+```go
+effectiveTags := m.Tags
+if len(effectiveTags) == 0 {
+    effectiveTags = ev.Tags
+}
+event := schemas.MarketDiscovered{
+    ...
+    Tags:     extractTagSlugs(effectiveTags),
+    Category: extractCategory(effectiveTags),
+    ...
+}
+```
+
+After one discovery cycle (~60 seconds), `market_metadata` rows began populating with real categories (`politics`, `world`, `pop-culture`, etc.) and tags. Both endpoints now return data.
+
+**Note:** Markets discovered via `discoverMarkets` (the flat `/markets` endpoint) still have no tags if Polymarket returns `null` there. Only event sub-markets benefit from this fallback. `series` was always populated correctly from `groupItemTitle`.
+
+---
+
+### Stage 18 — Interactive API Docs (Scalar)
+
+Added a live, interactive API documentation page served directly from `hub-api` with no new containers or services.
+
+**What was added:**
+
+| File | Change |
+|------|--------|
+| `services/api/openapi.json` | OpenAPI 3.0 spec covering all 28 endpoints — paths, parameters, request/response schemas, security schemes |
+| `services/api/main.go` | Two new routes: `GET /openapi.json` and `GET /docs` |
+
+**How `/docs` works:**
+
+1. Browser hits `http://YOUR_VPS_IP:8088/docs`
+2. `hub-api` returns a 6-line HTML page (inlined in `main.go`)
+3. Browser loads Scalar UI from `cdn.jsdelivr.net` (external CDN — fetched by the browser, not the VPS)
+4. Scalar fetches `/openapi.json` from `hub-api` and renders the full interactive docs
+
+```
+hub-api container (port 8088)
+├── /v1/*           → API endpoints
+├── /openapi.json   ← spec embedded in binary via //go:embed
+└── /docs           ← HTML page that loads Scalar from CDN
+```
+
+**The `openapi.json` is embedded in the binary** using Go's `//go:embed` directive — no extra files needed at runtime, no volume mounts. Updating the spec requires rebuilding and redeploying `hub-api`.
+
+**CSP fix:** The global `SecurityHeaders` middleware sets `Content-Security-Policy: default-src 'none'` on all responses. The `/docs` handler overrides this header before writing the response to allow loading scripts/styles from `cdn.jsdelivr.net` only. All other routes remain under the strict `default-src 'none'` policy.
+
+**Scalar is free** — MIT licensed, open source. No account or API key required. It is loaded from CDN at page-render time; the VPS does not need outbound internet access for the docs to be served (only the user's browser does).
+
+**Features:**
+- "Try it out" button on every endpoint — makes real HTTP requests to the API
+- Authorize button for `X-Debug-Token` (persisted across page reloads)
+- All query parameters, path params, and response schemas documented
+
+---
+
+### Stage 19 — `market_metadata` Deduplication (ReplacingMergeTree)
+
+**Problem:** `market_metadata` used `MergeTree() ORDER BY (market_id, created_at)`. The discovery service re-inserts every active market every 60 seconds. With `MergeTree`, each insert creates a new row — there is no deduplication. After weeks of operation: 116k rows for only 46k unique markets (2.5× bloat), growing at ~2k rows/minute indefinitely.
+
+**Why this matters:**
+- Table scan cost grows linearly with duplicate rows — queries get slower over time
+- Disk fills up from metadata rows alone
+- API responses could return stale/duplicate data for the same market
+
+**Fix — two parts:**
+
+**Part 1: Change table engine in `services/storage/main.go`**
+
+```go
+// Before
+ENGINE = MergeTree() ORDER BY (market_id, created_at)
+
+// After
+ENGINE = ReplacingMergeTree(created_at) ORDER BY market_id
+```
+
+`ReplacingMergeTree(created_at)` deduplicates rows with the same `market_id` during background merges, keeping the row with the latest `created_at`. The `ORDER BY` is changed to just `market_id` because that is the unique key — including `created_at` in the sort key would prevent deduplication.
+
+**Part 2: Add `FINAL` to all API queries on `market_metadata` in `services/api/handlers/rest.go`**
+
+`FINAL` deduplicates at query time regardless of whether a background merge has run yet:
+```sql
+-- Before
+FROM market_metadata WHERE market_id = ?
+
+-- After
+FROM market_metadata FINAL WHERE market_id = ?
+```
+
+Applied to: market listing, filtered markets, single market lookup, search, related markets.
+Category/tag/series queries already used `count(DISTINCT market_id)` so they were correct even with duplicates.
+
+**VPS migration (ClickHouse does not support ALTER TABLE to change engine):**
+
+```sql
+-- 1. Rename old table (keeps data safe)
+RENAME TABLE market_metadata TO market_metadata_old;
+
+-- 2. Create new table with correct engine
+CREATE TABLE market_metadata (...) ENGINE = ReplacingMergeTree(created_at) ORDER BY market_id;
+
+-- 3. Insert only the latest row per market_id (deduplicated)
+INSERT INTO market_metadata
+SELECT * FROM market_metadata_old
+WHERE (market_id, created_at) IN (
+    SELECT market_id, max(created_at) FROM market_metadata_old GROUP BY market_id
+);
+
+-- 4. Verify: rows should equal unique_markets
+SELECT count() as rows, uniq(market_id) as unique_markets FROM market_metadata;
+-- Result: 46893  46893  ✅
+
+-- 5. Drop old table
+DROP TABLE market_metadata_old;
+```
+
+**Result:** 116k rows → 46k rows (70k duplicates removed). Table now stays near 1:1 ratio — background merges keep it clean, `FINAL` guarantees correct reads in between.
+
+---
+
+### Stage 20 — Uptime Kuma Status Dashboard
+
+**Problem:** No visual way to see which services are up/down, no response-time history, no public status page.
+
+**Solution:** Added `louislam/uptime-kuma:1` as a dedicated Docker container in `docker-compose.yml`. It runs on port `3001`, uses a named volume (`uptime_kuma_data`) for SQLite persistence, and monitors all 12 internal endpoints directly by Docker service name — no public IP hops.
+
+**Files changed:**
+
+- `predsx/deployments/package/docker-compose.yml` — new `uptime-kuma` service block + `uptime_kuma_data` volume
+- `predsx/docs/uptime-kuma.md` — new doc: full setup guide, all 12 monitor configs, Discord alert setup, status page creation, maintenance commands
+
+**12 monitors configured:**
+
+| Group | Monitors |
+|---|---|
+| Infrastructure (TCP) | `clickhouse:9000`, `redis:6379`, `kafka:9092`, `postgres:5432` |
+| Service health (HTTP `/health`) | `hub-api:8088`, `hub-discovery:8081`, `hub-ingestion:8082`, `hub-processor:8083`, `hub-storage:8084` |
+| API endpoints (HTTP) | `/v1/markets`, `/v1/categories`, `/v1/tags` |
+
+**Resource cost:** ~60–80 MB RAM, ~50–100 MB disk/year — negligible on the VPS.
+
+**Relationship with existing cron monitoring:**
+
+| System | Covers |
+|---|---|
+| Cron script (`predsx-health.sh`) | OS-level: disk %, RAM %, swap %, exited containers |
+| Uptime Kuma | Per-service: HTTP status, TCP connectivity, response-time graphs, public status page |
+
+Both run independently — they are complementary, not redundant.
+
+**Access:** `http://167.233.97.217:3001` (admin login set on first visit)
+
+---
+
 ## Final Checklist
 
 | Component | Status |
@@ -569,6 +787,11 @@ Fix: Changed `rest.go` line 333 from `predsx:price:` to `live:price:`.
 | Price endpoint Redis key fix | ✅ `live:price:` key — processor and API now aligned |
 | API security hardening (Stage 14) | ✅ Security headers, CORS allowlist, trusted proxies, error masking, HTTP hardening, `/metrics` gated |
 | Parallel event discovery (Stage 15) | ✅ `discoverEvents` + `sync.WaitGroup` — `event_id` populated within first poll cycle |
+| Disk cleanup (Stage 16) | ✅ Kafka ws.raw capped (24h/300MB), orphaned ClickHouse store dirs deleted (6.4 GB freed), price_history TTLs added |
+| Tags/category fix (Stage 17) | ✅ `PolymarketEvent.Tags` field added; event-level tags now propagated to sub-markets |
+| Interactive API docs (Stage 18) | ✅ Scalar UI at `/docs`, OpenAPI spec at `/openapi.json`, embedded in `hub-api` binary — no new containers |
+| market_metadata deduplication (Stage 19) | ✅ `ReplacingMergeTree(created_at)` + `FINAL` on all queries — 116k rows → 46k, table stays clean permanently |
+| Uptime Kuma status dashboard (Stage 20) | ✅ `louislam/uptime-kuma:1` on port `3001` — 12 monitors, Discord alerts, public status page, ~70 MB RAM |
 
 ---
 
@@ -585,7 +808,10 @@ Fix: Changed `rest.go` line 333 from `predsx:price:` to `live:price:`.
 - [clickhouse-queries.md](clickhouse-queries.md) — ClickHouse SQL reference for analytics and debugging
 - [rollback.md](rollback.md) — Step-by-step rollback procedure using git-hash image tags
 - [cli.md](cli.md) — CLI tool (`cmd/predsx`) subcommand reference
+- [uptime-kuma.md](uptime-kuma.md) — Uptime Kuma setup, monitors, Discord alerts, and public status page
 
 ---
 
-*Last updated: June 12, 2026*
+_Last updated: June 17, 2026 — Stage 20 added_
+
+*Last updated: June 17, 2026 — Stages 18–19 added*

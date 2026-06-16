@@ -266,7 +266,28 @@ Replace `0 * * * *` with one of these:
 
 ---
 
+---
+
+## Part 8 — Uptime Kuma (Visual Status Dashboard)
+
+In addition to the cron script, PredSX runs **Uptime Kuma** — a self-hosted visual monitoring dashboard at `http://167.233.97.217:3001`.
+
+| Feature | Cron Script | Uptime Kuma |
+|---|---|---|
+| OS metrics (disk, RAM, swap) | ✅ | ❌ |
+| Per-service uptime monitoring | ❌ | ✅ |
+| Response-time graphs & history | ❌ | ✅ |
+| Public status page | ❌ | ✅ |
+| Discord alerts | ✅ | ✅ |
+
+Both systems run independently and complement each other.
+
+Full setup guide: [uptime-kuma.md](uptime-kuma.md)
+
+---
+
 ## Related Docs
 
+- [uptime-kuma.md](uptime-kuma.md) — Uptime Kuma setup, monitors, and status page
 - [vps-deploy.md](vps-deploy.md) — Full VPS deployment guide including stability fixes
 - [troubleshooting.md](troubleshooting.md) — Common errors and how to fix them

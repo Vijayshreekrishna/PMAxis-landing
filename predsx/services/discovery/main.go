@@ -70,6 +70,7 @@ type PolymarketEvent struct {
 	Title   string             `json:"title"`
 	Active  bool               `json:"active"`
 	Closed  bool               `json:"closed"`
+	Tags    []PolymarketTag    `json:"tags"`
 	Markets []PolymarketMarket `json:"markets"`
 }
 
@@ -359,6 +360,12 @@ func discoverEvents(ctx context.Context, svc *service.BaseService, url string, r
 				endTime := parseTime(m.EndDate)
 				rawBytes, _ := json.Marshal(m)
 
+				// Sub-markets from events often have null tags; fall back to event-level tags.
+				effectiveTags := m.Tags
+				if len(effectiveTags) == 0 {
+					effectiveTags = ev.Tags
+				}
+
 				event := schemas.MarketDiscovered{
 					ID:           m.ID,
 					Slug:         m.Slug,
@@ -372,8 +379,8 @@ func discoverEvents(ctx context.Context, svc *service.BaseService, url string, r
 					StartTime:    startTime,
 					EndTime:      endTime,
 					Status:       m.DerivedStatus(),
-					Tags:         extractTagSlugs(m.Tags),
-					Category:     extractCategory(m.Tags),
+					Tags:         extractTagSlugs(effectiveTags),
+					Category:     extractCategory(effectiveTags),
 					Series:       m.GroupItemTitle,
 					CreatedAt:    time.Now(),
 					Version:      schemas.VersionV1,
