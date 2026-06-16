@@ -18,21 +18,29 @@ import (
 	"github.com/predsx/predsx/libs/service"
 )
 
+type PolymarketTag struct {
+	ID    string `json:"id"`
+	Slug  string `json:"slug"`
+	Label string `json:"label"`
+}
+
 type PolymarketMarket struct {
-	ID           string          `json:"id"`
-	Slug         string          `json:"slug"`
-	Title        string          `json:"title"`
-	Question     string          `json:"question"`
-	ConditionID  string          `json:"conditionID"`
-	EventID      string          `json:"eventId"`
-	StartDate    string          `json:"startDate"`
-	EndDate      string          `json:"endDate"`
-	Outcomes     string          `json:"outcomes"`
-	Status       string          `json:"status"`
-	Active       bool            `json:"active"`
-	Closed       bool            `json:"closed"`
-	Resolved     bool            `json:"resolved"`
-	ClobTokenIds json.RawMessage `json:"clobTokenIds"`
+	ID             string          `json:"id"`
+	Slug           string          `json:"slug"`
+	Title          string          `json:"title"`
+	Question       string          `json:"question"`
+	ConditionID    string          `json:"conditionID"`
+	EventID        string          `json:"eventId"`
+	StartDate      string          `json:"startDate"`
+	EndDate        string          `json:"endDate"`
+	Outcomes       string          `json:"outcomes"`
+	Status         string          `json:"status"`
+	Active         bool            `json:"active"`
+	Closed         bool            `json:"closed"`
+	Resolved       bool            `json:"resolved"`
+	ClobTokenIds   json.RawMessage `json:"clobTokenIds"`
+	Tags           []PolymarketTag `json:"tags"`
+	GroupItemTitle string          `json:"groupItemTitle"`
 }
 
 func (m PolymarketMarket) DerivedStatus() string {
@@ -209,6 +217,9 @@ func discoverMarkets(ctx context.Context, svc *service.BaseService, url string, 
 				StartTime:    startTime,
 				EndTime:      endTime,
 				Status:       m.DerivedStatus(),
+				Tags:         extractTagSlugs(m.Tags),
+				Category:     extractCategory(m.Tags),
+				Series:       m.GroupItemTitle,
 				CreatedAt:    time.Now(),
 				Version:      schemas.VersionV1,
 			}
@@ -361,6 +372,9 @@ func discoverEvents(ctx context.Context, svc *service.BaseService, url string, r
 					StartTime:    startTime,
 					EndTime:      endTime,
 					Status:       m.DerivedStatus(),
+					Tags:         extractTagSlugs(m.Tags),
+					Category:     extractCategory(m.Tags),
+					Series:       m.GroupItemTitle,
 					CreatedAt:    time.Now(),
 					Version:      schemas.VersionV1,
 				}
@@ -393,6 +407,33 @@ func discoverEvents(ctx context.Context, svc *service.BaseService, url string, r
 func parseTime(raw string) time.Time {
 	ts, _ := time.Parse(time.RFC3339, raw)
 	return ts
+}
+
+// extractTagSlugs returns the slug of every tag, lowercased, e.g. ["sports", "nfl", "kansas-city-chiefs"].
+func extractTagSlugs(tags []PolymarketTag) []string {
+	if len(tags) == 0 {
+		return nil
+	}
+	slugs := make([]string, 0, len(tags))
+	for _, t := range tags {
+		slug := t.Slug
+		if slug == "" {
+			continue
+		}
+		slugs = append(slugs, strings.ToLower(slug))
+	}
+	return slugs
+}
+
+// extractCategory returns the first tag slug as the market's primary category.
+// Polymarket lists the broadest tag (e.g. "sports", "politics", "crypto") first.
+func extractCategory(tags []PolymarketTag) string {
+	for _, t := range tags {
+		if t.Slug != "" {
+			return strings.ToLower(t.Slug)
+		}
+	}
+	return ""
 }
 
 func parseClobTokenIDs(raw json.RawMessage) []string {

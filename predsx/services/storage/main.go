@@ -207,9 +207,22 @@ func ensureSchemas(ctx context.Context, ch clickhouse.Interface, log logger.Inte
 		CREATE TABLE IF NOT EXISTS market_metadata (
 			market_id String, slug String, title String, question String, condition_id String,
 			status String, exchange String, event_id String, start_time DateTime64(3),
-			end_time DateTime64(3), outcomes String, created_at DateTime64(3), raw String
+			end_time DateTime64(3), outcomes String, created_at DateTime64(3), raw String,
+			tags String, category String, series String
 		) ENGINE = MergeTree() ORDER BY (market_id, created_at)
 	`)
+
+	// Backfill new taxonomy columns onto pre-existing market_metadata tables.
+	// ADD COLUMN IF NOT EXISTS is a no-op when the column already exists.
+	for _, col := range []string{
+		"ALTER TABLE market_metadata ADD COLUMN IF NOT EXISTS tags String",
+		"ALTER TABLE market_metadata ADD COLUMN IF NOT EXISTS category String",
+		"ALTER TABLE market_metadata ADD COLUMN IF NOT EXISTS series String",
+	} {
+		if err := ch.Exec(ctx, col); err != nil {
+			log.Error("market_metadata column migration failed", "stmt", col, "err", err)
+		}
+	}
 
 	// Orderbook history (2 day retention)
 	log.Info("checking table", "name", "orderbook_history")
@@ -467,9 +480,10 @@ func persistMarketMetadata(ctx context.Context, ch clickhouse.Interface, evt sch
 		title = evt.Question
 	}
 	outcomes, _ := json.Marshal(evt.Outcomes)
+	tags, _ := json.Marshal(evt.Tags)
 	log.Info("saving market to clickhouse", "id", evt.ID, "slug", evt.Slug)
-	err := ch.Exec(ctx, `INSERT INTO market_metadata (market_id, slug, title, question, condition_id, status, exchange, event_id, start_time, end_time, outcomes, created_at, raw) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		evt.ID, evt.Slug, title, evt.Question, evt.ConditionID, evt.Status, evt.Exchange, evt.EventID, evt.StartTime, evt.EndTime, string(outcomes), time.Now(), evt.Raw)
+	err := ch.Exec(ctx, `INSERT INTO market_metadata (market_id, slug, title, question, condition_id, status, exchange, event_id, start_time, end_time, outcomes, created_at, raw, tags, category, series) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		evt.ID, evt.Slug, title, evt.Question, evt.ConditionID, evt.Status, evt.Exchange, evt.EventID, evt.StartTime, evt.EndTime, string(outcomes), time.Now(), evt.Raw, string(tags), evt.Category, evt.Series)
 	if err != nil {
 		log.Error("failed to save market", "id", evt.ID, "err", err)
 	}

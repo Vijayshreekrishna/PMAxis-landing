@@ -41,6 +41,9 @@ type MarketDiscovered struct {
 	EndTime      time.Time `json:"end_time"`
 	Outcomes     []string  `json:"outcomes"`
 	Status       string    `json:"status"`
+	Tags         []string  `json:"tags"`
+	Category     string    `json:"category"`
+	Series       string    `json:"series"`
 	CreatedAt    time.Time `json:"created_at"`
 	Version      string    `json:"version"`
 }

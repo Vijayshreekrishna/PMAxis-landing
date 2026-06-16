@@ -712,6 +712,147 @@ Close the SSH session when done — all tunnels close automatically.
 
 ---
 
+## VPS Stability & Monitoring
+
+This section documents all stability fixes applied after the initial deployment and the ongoing monitoring setup.
+
+---
+
+### Memory Configuration
+
+The VPS has 4GB RAM with 10 containers running. Each service has a tuned memory limit to prevent OOM kills.
+
+| Service | Memory Limit | Notes |
+|---|---|---|
+| zookeeper | 256M | Heap capped at 128M via `ZOOKEEPER_HEAP_SIZE` |
+| kafka | 768M | JVM heap 256M, off-heap (metaspace + buffers) uses remainder |
+| redis | 100M | maxmemory 64mb, allkeys-lru eviction |
+| postgres | 256M | — |
+| clickhouse | 1.5G | Internal limit = ~1.35G (90% of Docker limit) |
+| hub-discovery | 200M | — |
+| hub-ingestion | 256M | — |
+| hub-processor | 400M | — |
+| hub-storage | 256M | — |
+| hub-api | 256M | — |
+
+**Kafka JVM tuning** (prevents off-heap OOM):
+```yaml
+KAFKA_HEAP_OPTS: "-Xms256M -Xmx256M"
+KAFKA_JVM_PERFORMANCE_OPTS: "-XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:+ExplicitGCInvokesConcurrent -XX:MaxMetaspaceSize=96m -XX:+HeapDumpOnOutOfMemoryError"
+```
+
+---
+
+### Swap File (OOM Safety Net)
+
+A 2GB swap file is configured as a safety net for memory spikes. Without swap, the Linux OOM killer will hard-kill Java/Go processes when any container exceeds its cgroup limit.
+
+```bash
+# Check swap status
+free -h
+
+# Expected output:
+#               total        used        free
+# Swap:          2.0Gi       ...         ...
+```
+
+To set up swap on a fresh VPS:
+```bash
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+---
+
+### Log Rotation
+
+All 10 containers have log rotation configured to prevent disk from filling up. Without this, container logs in `/var/lib/docker/containers/` grow unbounded and can fill the entire disk.
+
+Every service in `docker-compose.yml` has:
+```yaml
+logging:
+  driver: "json-file"
+  options:
+    max-size: "50m"
+    max-file: "3"
+```
+
+This caps each service at 150MB of logs max (50MB × 3 files).
+
+If disk fills up despite log rotation, truncate all logs immediately:
+```bash
+sudo find /var/lib/docker/containers -name "*.log" -exec truncate -s 0 {} \;
+```
+
+---
+
+### Disk Usage Investigation
+
+If disk seems full but `du -sh /*` shows low usage, always run with sudo — Docker's `/var/lib/docker` directory is not readable without it:
+
+```bash
+sudo du -sh /var/lib/docker/
+sudo du -sh /var/lib/docker/containers/
+sudo du -sh /var/lib/docker/volumes/
+```
+
+---
+
+### Discord Health Monitoring (Cron)
+
+An hourly cron job monitors disk, containers, memory, and swap — sending a Discord alert only when something is wrong.
+
+**Script location:** `/usr/local/bin/predsx-health.sh`
+
+**What it monitors:**
+
+| Check | Threshold | Alert |
+|---|---|---|
+| Disk usage | > 80% | `[DISK] Usage is XX%` |
+| Unhealthy containers | any | `[UNHEALTHY] container-name` |
+| Exited containers | any | `[EXITED] container-name` |
+| Memory usage | > 85% | `[MEMORY] XX%` |
+| Swap usage | > 50% | `[SWAP] XX%` |
+
+**Cron schedule:** `0 * * * *` (every hour at minute 0)
+
+To check the cron is registered:
+```bash
+crontab -l
+```
+
+To run the health check manually:
+```bash
+sudo bash /usr/local/bin/predsx-health.sh
+```
+
+To update the Discord webhook URL (if regenerated):
+```bash
+sudo sed -i 's|https://discord.com/api/webhooks/OLD|https://discord.com/api/webhooks/NEW|' /usr/local/bin/predsx-health.sh
+```
+
+To update alert thresholds:
+```bash
+sudo nano /usr/local/bin/predsx-health.sh
+# Edit THRESHOLD_DISK and THRESHOLD_MEM values at the top
+```
+
+---
+
+### Incident History
+
+| Date | Problem | Root Cause | Fix |
+|---|---|---|---|
+| 2026-06-14 | Kafka unhealthy, disk 100% full | Container logs grew unbounded (no rotation) | Truncated logs, added log rotation to all services |
+| 2026-06-14 | ZooKeeper crash → Kafka DNS failure | Cascading failure from disk full | Freed disk, restarted ZooKeeper + Kafka |
+| 2026-06-14 | Kafka OOM killed every ~40s | No swap, 512M cgroup limit too tight for JVM off-heap | Added 2GB swap, increased limit to 768M with G1GC tuning |
+| 2026-06-14 | ClickHouse MEMORY_LIMIT_EXCEEDED | 1G Docker limit → 921MB internal limit insufficient for background merges | Increased Docker limit to 1.5G |
+
+---
+
 ## Related Docs
 
 - [port-security.md](port-security.md) — Port bindings, UFW rules, TLS/Caddy setup

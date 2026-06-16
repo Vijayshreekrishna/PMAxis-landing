@@ -50,6 +50,9 @@ func (h *APIHandler) GetMarkets(w http.ResponseWriter, r *http.Request) {
 
 	limit := parseLimit(getQuery(r, "limit", ""), 50, 200)
 	status := strings.ToUpper(getQuery(r, "status", ""))
+	category := strings.ToLower(getQuery(r, "category", ""))
+	tag := strings.ToLower(getQuery(r, "tag", ""))
+	series := getQuery(r, "series", "")
 
 	// Cursor-based pagination: cursor encodes the current offset opaquely.
 	var offset int
@@ -65,7 +68,7 @@ func (h *APIHandler) GetMarkets(w http.ResponseWriter, r *http.Request) {
 		HasMore    bool                     `json:"has_more"`
 	}
 
-	cacheKey := fmt.Sprintf("cache:markets:%s:%s:%d:%d", exchange, status, limit, offset)
+	cacheKey := fmt.Sprintf("cache:markets:%s:%s:%s:%s:%s:%d:%d", exchange, status, category, tag, series, limit, offset)
 	var cached marketsPage
 	if h.cacheGetJSON(ctx, cacheKey, &cached) {
 		w.Header().Set("Content-Type", "application/json")
@@ -74,9 +77,17 @@ func (h *APIHandler) GetMarkets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	results := h.getActivityRankedMarkets(ctx, exchange, status, limit, offset)
-	if len(results) < limit {
-		results = append(results, h.getRecentMarkets(ctx, exchange, status, limit-len(results), results)...)
+	// When a taxonomy filter is present, query market_metadata directly. The
+	// activity-ranked path can't filter on category/tag/series, so we skip it
+	// to keep results correct.
+	var results []map[string]interface{}
+	if category != "" || tag != "" || series != "" {
+		results = h.getFilteredMarkets(ctx, exchange, status, category, tag, series, limit, offset)
+	} else {
+		results = h.getActivityRankedMarkets(ctx, exchange, status, limit, offset)
+		if len(results) < limit {
+			results = append(results, h.getRecentMarkets(ctx, exchange, status, limit-len(results), results)...)
+		}
 	}
 	if results == nil {
 		results = []map[string]interface{}{}
@@ -269,6 +280,94 @@ func (h *APIHandler) getRecentMarkets(ctx context.Context, exchange string, stat
 		}
 	}
 
+	return results
+}
+
+// getFilteredMarkets queries market_metadata directly, filtering by any combination
+// of exchange, status, category, tag, and series. tag matches against the JSON-array
+// tags column. Results are ordered newest-first with offset/limit pagination.
+func (h *APIHandler) getFilteredMarkets(ctx context.Context, exchange, status, category, tag, series string, limit, offset int) []map[string]interface{} {
+	var filters []string
+	var args []interface{}
+	if exchange != "" {
+		filters = append(filters, "lower(exchange) = lower(?)")
+		args = append(args, exchange)
+	}
+	if status != "" {
+		filters = append(filters, "upper(status) = upper(?)")
+		args = append(args, status)
+	}
+	if category != "" {
+		filters = append(filters, "lower(category) = lower(?)")
+		args = append(args, category)
+	}
+	if series != "" {
+		filters = append(filters, "lower(series) = lower(?)")
+		args = append(args, series)
+	}
+	if tag != "" {
+		filters = append(filters, "has(JSONExtract(tags, 'Array(String)'), lower(?))")
+		args = append(args, tag)
+	}
+
+	query := `
+		SELECT market_id, slug, title, question, condition_id, status, exchange, event_id,
+		       start_time, end_time, outcomes
+		FROM market_metadata
+	`
+	if len(filters) > 0 {
+		query += " WHERE " + strings.Join(filters, " AND ")
+	}
+	query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
+
+	rows, err := h.ClickHouse.Query(ctx, query, args...)
+	if err != nil {
+		h.Logger.Error("filtered market query failed", "error", err)
+		return nil
+	}
+	defer func() {
+		if closer, ok := rows.(interface{ Close() error }); ok {
+			closer.Close()
+		}
+	}()
+
+	results := make([]map[string]interface{}, 0, limit)
+	seen := make(map[string]struct{})
+	if sqlRows, ok := rows.(interface {
+		Next() bool
+		Scan(dest ...interface{}) error
+	}); ok {
+		for sqlRows.Next() {
+			var marketID, slug, title, question, conditionID, statusVal, exchangeVal, eventID, outcomes string
+			var startTime, endTime time.Time
+			if err := sqlRows.Scan(&marketID, &slug, &title, &question, &conditionID, &statusVal, &exchangeVal, &eventID, &startTime, &endTime, &outcomes); err != nil {
+				continue
+			}
+			if _, exists := seen[marketID]; exists {
+				continue
+			}
+			seen[marketID] = struct{}{}
+			// Re-fetch full metadata so tags/category/series surface in the summary.
+			meta := h.getMarketMetadata(ctx, marketID)
+			if len(meta) == 0 {
+				meta = map[string]string{
+					"market_id":    marketID,
+					"slug":         slug,
+					"title":        title,
+					"question":     question,
+					"condition_id": conditionID,
+					"status":       statusVal,
+					"exchange":     exchangeVal,
+					"event_id":     eventID,
+					"outcomes":     outcomes,
+					"start_time":   startTime.Format(time.RFC3339),
+					"end_time":     endTime.Format(time.RFC3339),
+				}
+			}
+			results = append(results, h.buildMarketSummary(ctx, marketID, meta))
+		}
+	}
 	return results
 }
 
@@ -899,7 +998,7 @@ func (h *APIHandler) getMarketMetadata(ctx context.Context, marketID string) map
 	meta := map[string]string{}
 	query := `
 		SELECT slug, title, question, condition_id, status, exchange, event_id,
-			start_time, end_time, outcomes, raw
+			start_time, end_time, outcomes, raw, tags, category, series
 		FROM market_metadata
 		WHERE market_id = ?
 		ORDER BY created_at DESC
@@ -919,10 +1018,10 @@ func (h *APIHandler) getMarketMetadata(ctx context.Context, marketID string) map
 		Next() bool
 		Scan(dest ...interface{}) error
 	}); ok {
-		var slug, title, question, conditionID, status, exchange, eventID, outcomes, raw string
+		var slug, title, question, conditionID, status, exchange, eventID, outcomes, raw, tags, category, series string
 		var startTime, endTime time.Time
 		if sqlRows.Next() {
-			if err := sqlRows.Scan(&slug, &title, &question, &conditionID, &status, &exchange, &eventID, &startTime, &endTime, &outcomes, &raw); err == nil {
+			if err := sqlRows.Scan(&slug, &title, &question, &conditionID, &status, &exchange, &eventID, &startTime, &endTime, &outcomes, &raw, &tags, &category, &series); err == nil {
 				meta["slug"] = slug
 				meta["title"] = title
 				meta["question"] = question
@@ -932,6 +1031,9 @@ func (h *APIHandler) getMarketMetadata(ctx context.Context, marketID string) map
 				meta["event_id"] = eventID
 				meta["outcomes"] = outcomes
 				meta["raw"] = raw
+				meta["tags"] = tags
+				meta["category"] = category
+				meta["series"] = series
 				if !startTime.IsZero() {
 					meta["start_time"] = startTime.Format(time.RFC3339)
 				}
@@ -983,6 +1085,9 @@ func (h *APIHandler) buildMarketSummary(ctx context.Context, marketID string, me
 		"condition_id": meta["condition_id"],
 		"start_time":   meta["start_time"],
 		"end_time":     meta["end_time"],
+		"tags":         parseTags(meta["tags"]),
+		"category":     meta["category"],
+		"series":       meta["series"],
 	}
 
 	if priceSnap != nil {
@@ -1059,6 +1164,19 @@ func parseOutcomes(raw string) []string {
 		return outcomes
 	}
 	return nil
+}
+
+// parseTags decodes the JSON-array string stored in market_metadata.tags into a slice.
+// Returns an empty (non-nil) slice so the API always emits "tags": [] rather than null.
+func parseTags(raw string) []string {
+	tags := []string{}
+	if raw == "" {
+		return tags
+	}
+	if err := json.Unmarshal([]byte(raw), &tags); err == nil {
+		return tags
+	}
+	return []string{}
 }
 
 func fallback(value, def string) string {
@@ -1700,4 +1818,118 @@ func (h *APIHandler) GetRelatedMarkets(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(results)
+}
+
+// GetCategories returns the distinct list of market categories with a market count each.
+// GET /v1/categories
+func (h *APIHandler) GetCategories(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	cacheKey := "cache:categories"
+	var cached []map[string]interface{}
+	if h.cacheGetJSON(ctx, cacheKey, &cached) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Cache", "HIT")
+		json.NewEncoder(w).Encode(cached)
+		return
+	}
+
+	query := `
+		SELECT category, count(DISTINCT market_id) AS market_count
+		FROM market_metadata
+		WHERE category != ''
+		GROUP BY category
+		ORDER BY market_count DESC
+	`
+	results := h.scanNameCount(ctx, query, "category")
+	h.cacheSetJSON(ctx, cacheKey, results, 5*time.Minute)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
+}
+
+// GetTags returns the distinct list of tags across all markets with a market count each.
+// GET /v1/tags
+func (h *APIHandler) GetTags(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	cacheKey := "cache:tags"
+	var cached []map[string]interface{}
+	if h.cacheGetJSON(ctx, cacheKey, &cached) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Cache", "HIT")
+		json.NewEncoder(w).Encode(cached)
+		return
+	}
+
+	// arrayJoin flattens the per-row tags array into one row per (market, tag).
+	query := `
+		SELECT tag, count(DISTINCT market_id) AS market_count
+		FROM market_metadata
+		ARRAY JOIN JSONExtract(tags, 'Array(String)') AS tag
+		WHERE tag != ''
+		GROUP BY tag
+		ORDER BY market_count DESC
+	`
+	results := h.scanNameCount(ctx, query, "tag")
+	h.cacheSetJSON(ctx, cacheKey, results, 5*time.Minute)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
+}
+
+// GetSeries returns the distinct list of series with a market count each.
+// GET /v1/series
+func (h *APIHandler) GetSeries(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	cacheKey := "cache:series"
+	var cached []map[string]interface{}
+	if h.cacheGetJSON(ctx, cacheKey, &cached) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Cache", "HIT")
+		json.NewEncoder(w).Encode(cached)
+		return
+	}
+
+	query := `
+		SELECT series, count(DISTINCT market_id) AS market_count
+		FROM market_metadata
+		WHERE series != ''
+		GROUP BY series
+		ORDER BY market_count DESC
+	`
+	results := h.scanNameCount(ctx, query, "series")
+	h.cacheSetJSON(ctx, cacheKey, results, 5*time.Minute)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
+}
+
+// scanNameCount runs a two-column (name string, count uint64) aggregation query and
+// returns rows shaped as {nameKey: <value>, "market_count": <n>}. Always non-nil.
+func (h *APIHandler) scanNameCount(ctx context.Context, query, nameKey string) []map[string]interface{} {
+	results := make([]map[string]interface{}, 0)
+	rows, err := h.ClickHouse.Query(ctx, query)
+	if err != nil {
+		h.Logger.Error("name-count query failed", "key", nameKey, "error", err)
+		return results
+	}
+	defer func() {
+		if closer, ok := rows.(interface{ Close() error }); ok {
+			closer.Close()
+		}
+	}()
+
+	if sqlRows, ok := rows.(interface {
+		Next() bool
+		Scan(dest ...interface{}) error
+	}); ok {
+		for sqlRows.Next() {
+			var name string
+			var count uint64
+			if err := sqlRows.Scan(&name, &count); err != nil {
+				continue
+			}
+			results = append(results, map[string]interface{}{
+				nameKey:        name,
+				"market_count": count,
+			})
+		}
+	}
+	return results
 }

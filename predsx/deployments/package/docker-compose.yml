@@ -7,13 +7,14 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
       ZOOKEEPER_AUTOPURGE_SNAP_RETAIN_COUNT: 3
       ZOOKEEPER_AUTOPURGE_PURGE_INTERVAL: 24
+      ZOOKEEPER_HEAP_SIZE: 128
     volumes:
       - zookeeper_data:/var/lib/zookeeper/data
       - zookeeper_log:/var/lib/zookeeper/log
     deploy:
       resources:
         limits:
-          memory: 128M
+          memory: 256M
     logging:
       driver: "json-file"
       options:
@@ -37,12 +38,13 @@ services:
       KAFKA_HEAP_OPTS: "-Xms256M -Xmx256M"
       KAFKA_LOG_RETENTION_HOURS: 2
       KAFKA_LOG_RETENTION_BYTES: 1073741824
+      KAFKA_JVM_PERFORMANCE_OPTS: "-XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:+ExplicitGCInvokesConcurrent -XX:MaxMetaspaceSize=96m -XX:+HeapDumpOnOutOfMemoryError"
     volumes:
       - kafka_data:/var/lib/kafka/data
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 768M
     logging:
       driver: "json-file"
       options:
@@ -53,7 +55,7 @@ services:
       interval: 15s
       timeout: 10s
       retries: 10
-      start_period: 30s
+      start_period: 90s
 
   redis:
     image: redis:latest
@@ -87,6 +89,11 @@ services:
       resources:
         limits:
           memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -105,7 +112,12 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 1.5G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
       interval: 10s
@@ -136,6 +148,11 @@ services:
       resources:
         limits:
           memory: 200M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8081/health"]
       interval: 15s
@@ -163,6 +180,11 @@ services:
       resources:
         limits:
           memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8082/health"]
       interval: 15s
@@ -193,6 +215,11 @@ services:
       resources:
         limits:
           memory: 400M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8083/health"]
       interval: 15s
@@ -225,6 +252,11 @@ services:
       resources:
         limits:
           memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8084/health"]
       interval: 15s
@@ -255,6 +287,11 @@ services:
       resources:
         limits:
           memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8088/health"]
       interval: 15s
