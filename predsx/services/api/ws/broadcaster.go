@@ -131,4 +131,25 @@ func StartKafkaBroadcaster(ctx context.Context, hub *Hub, kafkaBrokers string, l
 			hub.BroadcastToMarket(marshal("signal", evt), evt.MarketID)
 		}
 	}()
+
+	// Wallet Activity
+	go func() {
+		walletTopic := config.GetEnv("WALLET_ACTIVITY_TOPIC", "predsx.wallet.activity")
+		c := kafkaclient.NewTypedConsumer[schemas.WalletActivityEvent](brokers, walletTopic, "api-ws-wallet", log, kafka.LastOffset)
+		defer c.Close()
+		log.Info("wallet activity consumer started", "topic", walletTopic)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			evt, err := c.Fetch(ctx)
+			if err != nil {
+				log.Error("wallet consumer fetch error", "error", err)
+				continue
+			}
+			hub.BroadcastToWallet(marshal("wallet_activity", evt), evt.Wallet)
+		}
+	}()
 }

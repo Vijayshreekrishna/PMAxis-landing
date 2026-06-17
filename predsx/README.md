@@ -13,15 +13,17 @@
 
 ---
 
-## 🚀 Features
+## Features
 
-- **Live Ingestion**: Connects to Polymarket WebSockets and on-chain RPC (with automatic multi-endpoint failover/rotation — see [`docs/rpc-failover-design.md`](docs/rpc-failover-design.md)) with robust connection pooling and pacing.
+- **Live Ingestion**: Connects to Polymarket WebSockets and on-chain Polygon RPC (with automatic multi-endpoint failover/rotation — see [`docs/infrastructure/rpc-failover-design.md`](docs/infrastructure/rpc-failover-design.md)) with robust connection pooling and pacing.
 - **Consolidated Hub Architecture**: 5 specialized Go services (`discovery`, `ingestion`, `processor`, `storage`, `api`) decoupled by Apache Kafka event streams.
 - **In-Memory Orderbooks**: Maintains high-performance L2 orderbooks and live price state directly in Go, persisting snapshots to Redis.
-- **Unified API & Real-Time Gateway**: REST endpoints (`/v1/*`) with Redis-backed response caching and rate limiting, plus a WebSocket hub (`/stream`) pushing live trades, orderbook updates, prices, and signals — see [`docs/api-reference.md`](docs/api-reference.md).
+- **Wallet Activity Tracking**: Watch any wallet address to track on-chain trades via the `wallet_activity` ClickHouse table; query raw settlement history for any wallet with no pre-watching needed via `/v1/wallets/{address}/onchain`.
+- **Unified API & Real-Time Gateway**: REST endpoints (`/v1/*`) with Redis-backed response caching and rate limiting, plus a WebSocket hub (`/stream`) pushing live trades, orderbook updates, prices, and signals — see [`docs/api/api-reference.md`](docs/api/api-reference.md).
+- **Interactive API Docs**: Scalar-powered docs page at `/docs` with theme switcher and live try-it-out.
 - **High-Throughput Storage**: Batch-inserts trades, candles, and metrics into ClickHouse, with Redis for hot state and PostgreSQL for relational/offset data.
 
-## 🏗️ Architecture
+## Architecture
 
 The system is decoupled via Kafka to allow horizontal scaling of any individual hub.
 
@@ -44,23 +46,21 @@ Polymarket (WebSocket + On-chain RPC)
 [ API Hub ]        ──► REST (/v1/*) & WebSocket Gateway (port 8088)
 ```
 
-## 📂 Project Structure
+## Project Structure
 
 - `libs/`: Shared production-grade libraries (Kafka clients, ClickHouse, Redis, Postgres, WebSocket pools, schemas, retry/config/logging).
 - `services/`: The 5 Core Hub services — `discovery`, `ingestion`, `processor`, `storage`, `api`.
 - `cmd/predsx/`: A built-in developer CLI tool for testing data streams directly from the terminal.
-- `deployments/`: Docker Compose configurations (local + VPS) that orchestrate the full container stack.
-- `docs/`: Design docs and API reference (RPC failover design, API reference, API improvements, port security).
+- `deployments/`: Docker Compose configurations that orchestrate the full container stack.
+- `docs/`: Documentation organized by topic — see [`docs/README.md`](docs/README.md) for the full index.
 
 ---
 
-## 🐳 Getting Started (Docker)
+## Getting Started (Docker)
 
 The easiest way to start the entire data pipeline (Kafka, Redis, ClickHouse, PostgreSQL, and all 5 Core Hub services) is via the provided Windows batch scripts (run from the repo root, one level up):
 
 ```bash
-# From the project root
-
 # 1. Build and start the full stack in the background
 start-docker.bat
 
@@ -70,12 +70,29 @@ stop-docker.bat
 
 > **Note:** The first `start` may take a few minutes as Go downloads module dependencies inside the containers. Subsequent boots are heavily cached and very fast.
 
-### Health Checks & Monitoring
+### Health Check
 
-Verify the API gateway and WebSocket hub are healthy:
 ```bash
 curl http://localhost:8088/health
 ```
 
-Prometheus metrics are exposed by every service at:
-`http://localhost:<service-port>/metrics`
+### API Docs
+
+Open `http://localhost:8088/docs` in a browser for the interactive Scalar API reference with live try-it-out.
+
+---
+
+## Documentation
+
+| Topic | File |
+|-------|------|
+| API endpoint reference | [`docs/api/api-reference.md`](docs/api/api-reference.md) |
+| VPS deploy guide | [`docs/deployment/vps-deploy.md`](docs/deployment/vps-deploy.md) |
+| Environment variables | [`docs/deployment/env-vars.md`](docs/deployment/env-vars.md) |
+| Rollback procedures | [`docs/deployment/rollback.md`](docs/deployment/rollback.md) |
+| ClickHouse query guide | [`docs/data/clickhouse-queries.md`](docs/data/clickhouse-queries.md) |
+| Monitoring & alerting | [`docs/operations/monitoring.md`](docs/operations/monitoring.md) |
+| Troubleshooting | [`docs/operations/troubleshooting.md`](docs/operations/troubleshooting.md) |
+| Port security | [`docs/infrastructure/port-security.md`](docs/infrastructure/port-security.md) |
+| Storage projections | [`docs/infrastructure/storage-projections.md`](docs/infrastructure/storage-projections.md) |
+| RPC failover design | [`docs/infrastructure/rpc-failover-design.md`](docs/infrastructure/rpc-failover-design.md) |

@@ -168,7 +168,7 @@ func startNormalizerComponent(ctx context.Context, svc *service.BaseService, bro
 func ensureSchemas(ctx context.Context, ch clickhouse.Interface, log logger.Interface) {
 	log.Info("initializing clickhouse schemas")
 
-	// Raw events for audit/debug (3 day retention)
+	// Raw events for audit/debug (1 day retention)
 	log.Info("checking table", "name", "events_raw")
 	ch.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS events_raw (
@@ -181,7 +181,7 @@ func ensureSchemas(ctx context.Context, ch clickhouse.Interface, log logger.Inte
 		) ENGINE = MergeTree()
 		PARTITION BY toDate(timestamp)
 		ORDER BY (market_id, timestamp)
-		TTL timestamp + INTERVAL 3 DAY;
+		TTL timestamp + INTERVAL 1 DAY;
 	`)
 
 	// Detailed trades for analytics (7 day retention)
@@ -261,7 +261,7 @@ func ensureSchemas(ctx context.Context, ch clickhouse.Interface, log logger.Inte
 		TTL timestamp + INTERVAL 2 DAY;
 	`)
 
-	// 1-Minute OHLCV Candles
+	// 1-Minute OHLCV Candles (90 day retention)
 	log.Info("checking table", "name", "price_history_1m")
 	ch.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS price_history_1m (
@@ -274,7 +274,8 @@ func ensureSchemas(ctx context.Context, ch clickhouse.Interface, log logger.Inte
 			volume Float64,
 			trade_count UInt32
 		) ENGINE = SummingMergeTree()
-		ORDER BY (market_id, timestamp);
+		ORDER BY (market_id, timestamp)
+		TTL timestamp + INTERVAL 90 DAY;
 	`)
 
 	log.Info("checking view", "name", "v_price_history_1m")
@@ -294,7 +295,7 @@ func ensureSchemas(ctx context.Context, ch clickhouse.Interface, log logger.Inte
 		GROUP BY market_id, timestamp;
 	`)
 
-	// 1-Hour OHLCV Candles (Permanent Research Data)
+	// 1-Hour OHLCV Candles (365 day retention)
 	log.Info("checking table", "name", "price_history_1h")
 	ch.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS price_history_1h (
@@ -307,7 +308,8 @@ func ensureSchemas(ctx context.Context, ch clickhouse.Interface, log logger.Inte
 			volume Float64,
 			trade_count UInt32
 		) ENGINE = SummingMergeTree()
-		ORDER BY (market_id, timestamp);
+		ORDER BY (market_id, timestamp)
+		TTL timestamp + INTERVAL 365 DAY;
 	`)
 
 	log.Info("checking view", "name", "v_price_history_1h")
@@ -326,6 +328,25 @@ func ensureSchemas(ctx context.Context, ch clickhouse.Interface, log logger.Inte
 		FROM trades
 		GROUP BY market_id, timestamp;
 	`)
+
+	// Wallet activity (90 day retention)
+	log.Info("checking table", "name", "wallet_activity")
+	ch.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS wallet_activity (
+			tx_hash   String,
+			wallet    String,
+			maker     String,
+			taker     String,
+			token_id  String,
+			market_id String,
+			amount    Float64,
+			side      LowCardinality(String),
+			timestamp DateTime64(3)
+		) ENGINE = MergeTree()
+		ORDER BY (wallet, timestamp)
+		TTL timestamp + INTERVAL 90 DAY;
+	`)
+
 	log.Info("clickhouse schemas initialized")
 }
 

@@ -31,7 +31,7 @@ What it does:
 2. Runs `docker build` for all 5 services: `discovery`, `ingestion`, `processor`, `storage`, `api`
 3. Tags each image as both `:latest` and `:<git-hash>` (e.g. `predsx-api:cc27bce`)
 4. Saves all 5 images as `.tar` files into `deployments/package/`
-5. Copies `docker-compose.vps.yml` → `deployments/package/docker-compose.yml`
+5. Copies `docker-compose.yml` → `deployments/package/docker-compose.yml`
 6. Copies `deployments/.env` → `deployments/package/.env`
 
 When complete, `deployments/package/` contains:
@@ -497,11 +497,38 @@ curl "http://YOUR_VPS_IP:8088/v1/events?exchange=polymarket&limit=5"
 ### Positions (Polymarket passthrough)
 
 ```bash
-curl "http://YOUR_VPS_IP:8088/v1/positions?wallet=0xYourWalletAddress"
-curl "http://YOUR_VPS_IP:8088/v1/positions/closed?wallet=0xYourWalletAddress"
+# Use a registered Polymarket proxy wallet address
+curl "http://YOUR_VPS_IP:8088/v1/positions?wallet=0xAdA100Db00Ca00073811820692005400218FcE1f"
+curl "http://YOUR_VPS_IP:8088/v1/positions/closed?wallet=0xAdA100Db00Ca00073811820692005400218FcE1f"
 ```
 
-**Expected:** Proxied response from Polymarket Data API. Returns `400 wallet is required` if `wallet` param is omitted.
+**Expected:** Proxied response from Polymarket Data API. Returns `400 wallet is required` if `wallet` param is omitted. The wallet must be a Polymarket-registered proxy address — unregistered addresses return an empty array, not an error.
+
+---
+
+### Wallet Activity
+
+```bash
+# Watch a wallet
+curl -X POST http://YOUR_VPS_IP:8088/v1/wallets/watch \
+  -H "Content-Type: application/json" \
+  -d '{"address": "0xE111180000d2663C0091e4f400237545B87B996B"}'
+
+# List watched wallets
+curl http://YOUR_VPS_IP:8088/v1/wallets/watched
+
+# On-chain history (no pre-watching needed — works for any wallet)
+curl "http://YOUR_VPS_IP:8088/v1/wallets/0xE111180000d2663C0091e4f400237545B87B996B/onchain?limit=5"
+
+# Activity from wallet_activity table (requires wallet to be watched first)
+curl "http://YOUR_VPS_IP:8088/v1/wallets/0xE111180000d2663C0091e4f400237545B87B996B/activity?limit=5"
+
+# Aggregated summary
+curl "http://YOUR_VPS_IP:8088/v1/wallets/0xE111180000d2663C0091e4f400237545B87B996B/summary"
+```
+
+**Expected for `/onchain`:** JSON with `source: "onchain"`, `data` array of raw trades. `amount` field is raw ERC-1155 units — divide by 1000000 for USDC.
+**Expected for `/activity`:** Requires the wallet to be pre-watched. Returns `[]` data if watching just started.
 
 ---
 

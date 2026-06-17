@@ -23,8 +23,9 @@ var (
 
 // clientMsg is the shape of messages sent from browser → server.
 type clientMsg struct {
-	Action  string   `json:"action"`  // "subscribe" | "unsubscribe"
+	Action  string   `json:"action"`  // "subscribe" | "unsubscribe" | "subscribe_wallet" | "unsubscribe_wallet"
 	Markets []string `json:"markets"` // list of market IDs
+	Wallets []string `json:"wallets"` // list of wallet addresses
 }
 
 // Client is a middleman between the websocket connection and the hub.
@@ -33,6 +34,7 @@ type Client struct {
 	conn          *websocket.Conn
 	send          chan []byte
 	subscriptions map[string]bool // empty = receive all markets
+	walletSubs    map[string]bool // explicit opt-in; empty = receive no wallet events
 	log           logger.Interface
 }
 
@@ -42,6 +44,7 @@ func NewClient(hub *Hub, conn *websocket.Conn, log logger.Interface) *Client {
 		conn:          conn,
 		send:          make(chan []byte, 256),
 		subscriptions: make(map[string]bool),
+		walletSubs:    make(map[string]bool),
 		log:           log.With("component", "ws_client"),
 	}
 }
@@ -71,8 +74,11 @@ func (c *Client) readPump() {
 			case "subscribe":
 				c.hub.Subscribe(c, cm.Markets)
 			case "unsubscribe":
-				// Empty slice = receive everything again
 				c.hub.Subscribe(c, []string{})
+			case "subscribe_wallet":
+				c.hub.SubscribeWallet(c, cm.Wallets)
+			case "unsubscribe_wallet":
+				c.hub.SubscribeWallet(c, []string{})
 			}
 		}
 	}

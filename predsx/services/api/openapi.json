@@ -25,6 +25,7 @@
     { "name": "Taxonomy", "description": "Categories, tags, series, and events" },
     { "name": "Positions", "description": "Wallet positions" },
     { "name": "Signals", "description": "Trading signals" },
+    { "name": "Wallet Activity", "description": "On-chain wallet tracking, activity history, and live alerts" },
     { "name": "Debug", "description": "Raw internal state (requires X-Debug-Token header)" }
   ],
   "paths": {
@@ -456,13 +457,13 @@
       "get": {
         "tags": ["Positions"],
         "summary": "Open positions for a wallet",
-        "description": "Returns all open positions for a wallet address. Proxied from Polymarket Data API.",
+        "description": "Returns all open (unsettled) positions for a Polymarket wallet address. Pass the full 0x address in the `wallet` param. Proxied from Polymarket Data API.",
         "operationId": "getPositions",
         "parameters": [
-          { "name": "wallet", "in": "query", "required": true, "schema": { "type": "string", "example": "0xabc..." }, "description": "Wallet address (required)" }
+          { "name": "wallet", "in": "query", "required": true, "schema": { "type": "string", "example": "0xAdA100Db00Ca00073811820692005400218FcE1f" }, "description": "Full Ethereum wallet address (required)" }
         ],
         "responses": {
-          "200": { "description": "Open positions" },
+          "200": { "description": "Open positions for the wallet" },
           "400": { "description": "wallet is required" }
         }
       }
@@ -471,14 +472,169 @@
       "get": {
         "tags": ["Positions"],
         "summary": "Closed positions for a wallet",
-        "description": "Returns all closed/settled positions for a wallet address. Proxied from Polymarket Data API.",
+        "description": "Returns all closed/settled positions for a Polymarket wallet address. Pass the full 0x address in the `wallet` param. Proxied from Polymarket Data API.",
         "operationId": "getClosedPositions",
         "parameters": [
-          { "name": "wallet", "in": "query", "required": true, "schema": { "type": "string", "example": "0xabc..." } }
+          { "name": "wallet", "in": "query", "required": true, "schema": { "type": "string", "example": "0xAdA100Db00Ca00073811820692005400218FcE1f" }, "description": "Full Ethereum wallet address (required)" }
         ],
         "responses": {
-          "200": { "description": "Closed positions" },
+          "200": { "description": "Closed positions for the wallet" },
           "400": { "description": "wallet is required" }
+        }
+      }
+    },
+    "/v1/wallets/watch": {
+      "post": {
+        "tags": ["Wallet Activity"],
+        "summary": "Watch a wallet",
+        "description": "Adds a wallet address to the watch list. Once watched, all on-chain ERC-1155 settlement trades involving this address will be captured in real-time and stored in `wallet_activity`. Also triggers live WebSocket alerts via `subscribe_wallet`.",
+        "operationId": "watchWallet",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["address"],
+                "properties": {
+                  "address": { "type": "string", "example": "0xE111180000d2663C0091e4f400237545B87B996B", "description": "Ethereum wallet address to watch" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Wallet added to watch list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "address": { "type": "string" },
+                    "watching": { "type": "boolean", "example": true }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "address is required" }
+        }
+      }
+    },
+    "/v1/wallets/watched": {
+      "get": {
+        "tags": ["Wallet Activity"],
+        "summary": "List watched wallets",
+        "description": "Returns all wallet addresses currently on the watch list.",
+        "operationId": "getWatchedWallets",
+        "responses": {
+          "200": {
+            "description": "Watched wallet list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "wallets": { "type": "array", "items": { "type": "string" } },
+                    "count": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/wallets/{address}/watch": {
+      "delete": {
+        "tags": ["Wallet Activity"],
+        "summary": "Unwatch a wallet",
+        "description": "Removes a wallet address from the watch list. New trades will no longer be captured, but existing `wallet_activity` history is retained until the 90-day TTL expires.",
+        "operationId": "unwatchWallet",
+        "parameters": [
+          { "name": "address", "in": "path", "required": true, "schema": { "type": "string", "example": "0xE111180000d2663C0091e4f400237545B87B996B" }, "description": "Wallet address to unwatch" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Wallet removed from watch list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "address": { "type": "string" },
+                    "watching": { "type": "boolean", "example": false }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/wallets/{address}/activity": {
+      "get": {
+        "tags": ["Wallet Activity"],
+        "summary": "Wallet activity history (watched only)",
+        "description": "Returns stored on-chain trade activity for a **watched** wallet from ClickHouse. Data is only captured from the moment the wallet was added to the watch list. For any wallet without pre-watching, use `/onchain` instead.",
+        "operationId": "getWalletActivity",
+        "parameters": [
+          { "name": "address", "in": "path", "required": true, "schema": { "type": "string", "example": "0xE111180000d2663C0091e4f400237545B87B996B" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50, "maximum": 200 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Wallet activity records",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/WalletActivityResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/wallets/{address}/onchain": {
+      "get": {
+        "tags": ["Wallet Activity"],
+        "summary": "On-chain trades for any wallet",
+        "description": "Returns raw on-chain ERC-1155 settlement trades for **any** wallet address (maker OR taker), directly from the `onchain_trades` table. No pre-watching required — works retroactively for trades within the 14-day retention window.",
+        "operationId": "getWalletOnchain",
+        "parameters": [
+          { "name": "address", "in": "path", "required": true, "schema": { "type": "string", "example": "0xE111180000d2663C0091e4f400237545B87B996B" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50, "maximum": 200 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "On-chain trade records",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/WalletOnchainResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/wallets/{address}/summary": {
+      "get": {
+        "tags": ["Wallet Activity"],
+        "summary": "Wallet trading summary",
+        "description": "Returns aggregated trading stats for a watched wallet: total trades, total volume, buy/sell breakdown, and first/last seen timestamps. Queries the `wallet_activity` table.",
+        "operationId": "getWalletSummary",
+        "parameters": [
+          { "name": "address", "in": "path", "required": true, "schema": { "type": "string", "example": "0xE111180000d2663C0091e4f400237545B87B996B" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Wallet summary stats",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/WalletSummary" }
+              }
+            }
+          }
         }
       }
     },
@@ -633,6 +789,61 @@
           "side": { "type": "string", "enum": ["BUY", "SELL"] },
           "token": { "type": "string" },
           "timestamp": { "type": "integer", "description": "Unix milliseconds" }
+        }
+      },
+      "WalletActivityRow": {
+        "type": "object",
+        "properties": {
+          "tx_hash": { "type": "string" },
+          "wallet": { "type": "string" },
+          "maker": { "type": "string" },
+          "taker": { "type": "string" },
+          "token_id": { "type": "string" },
+          "market_id": { "type": "string" },
+          "amount": { "type": "number", "format": "float", "description": "Normalized amount (6 decimal places)" },
+          "side": { "type": "string", "enum": ["buy", "sell"], "description": "buy = wallet was taker, sell = wallet was maker" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      },
+      "WalletActivityResponse": {
+        "type": "object",
+        "properties": {
+          "address": { "type": "string" },
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/WalletActivityRow" } },
+          "count": { "type": "integer" }
+        }
+      },
+      "WalletOnchainRow": {
+        "type": "object",
+        "properties": {
+          "tx_hash": { "type": "string" },
+          "maker": { "type": "string" },
+          "taker": { "type": "string" },
+          "token_id": { "type": "string" },
+          "amount": { "type": "string" },
+          "timestamp": { "type": "string", "format": "date-time" },
+          "side": { "type": "string", "enum": ["buy", "sell"] }
+        }
+      },
+      "WalletOnchainResponse": {
+        "type": "object",
+        "properties": {
+          "address": { "type": "string" },
+          "source": { "type": "string", "example": "onchain" },
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/WalletOnchainRow" } },
+          "count": { "type": "integer" }
+        }
+      },
+      "WalletSummary": {
+        "type": "object",
+        "properties": {
+          "address": { "type": "string" },
+          "total_trades": { "type": "integer" },
+          "total_volume": { "type": "number", "format": "float" },
+          "buy_count": { "type": "integer" },
+          "sell_count": { "type": "integer" },
+          "first_seen": { "type": "string", "format": "date-time" },
+          "last_seen": { "type": "string", "format": "date-time" }
         }
       },
       "MarketStats": {

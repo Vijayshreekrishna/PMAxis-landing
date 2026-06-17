@@ -666,7 +666,7 @@ func (h *APIHandler) GetMarketPositions(w http.ResponseWriter, r *http.Request) 
 	if wallet := getQuery(r, "wallet", ""); wallet != "" {
 		extra["user"] = wallet
 	}
-	h.proxyGET(w, r, h.DataURL, "/market-positions", extra)
+	h.proxyGET(w, r, h.DataURL, "/positions", extra)
 }
 
 func (h *APIHandler) GetDebugMarkets(w http.ResponseWriter, r *http.Request) {
@@ -1943,4 +1943,244 @@ func (h *APIHandler) scanNameCount(ctx context.Context, query, nameKey string) [
 		}
 	}
 	return results
+}
+
+// --- WALLET HANDLERS ---
+
+func (h *APIHandler) WatchWallet(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var body struct {
+		Address string `json:"address"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Address == "" {
+		http.Error(w, `{"error":"address is required"}`, http.StatusBadRequest)
+		return
+	}
+	addr := strings.ToLower(strings.TrimSpace(body.Address))
+	if err := h.Redis.SAdd(ctx, "watched:wallets", addr).Err(); err != nil {
+		h.Logger.Error("watch wallet failed", "addr", addr, "error", err)
+		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"address": addr, "watching": true})
+}
+
+func (h *APIHandler) UnwatchWallet(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	addr := strings.ToLower(mux.Vars(r)["address"])
+	if addr == "" {
+		http.Error(w, `{"error":"address is required"}`, http.StatusBadRequest)
+		return
+	}
+	if err := h.Redis.SRem(ctx, "watched:wallets", addr).Err(); err != nil {
+		h.Logger.Error("unwatch wallet failed", "addr", addr, "error", err)
+		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"address": addr, "watching": false})
+}
+
+func (h *APIHandler) GetWatchedWallets(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	members, err := h.Redis.SMembers(ctx, "watched:wallets").Result()
+	if err != nil {
+		h.Logger.Error("get watched wallets failed", "error", err)
+		members = []string{}
+	}
+	if members == nil {
+		members = []string{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"wallets": members, "count": len(members)})
+}
+
+func (h *APIHandler) GetWalletActivity(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	addr := strings.ToLower(mux.Vars(r)["address"])
+	if addr == "" {
+		http.Error(w, `{"error":"address is required"}`, http.StatusBadRequest)
+		return
+	}
+	limit := parseLimit(getQuery(r, "limit", ""), 50, 200)
+
+	rows, err := h.ClickHouse.Query(ctx, `
+		SELECT tx_hash, wallet, maker, taker, token_id, market_id, amount, side, timestamp
+		FROM wallet_activity
+		WHERE wallet = ?
+		ORDER BY timestamp DESC
+		LIMIT ?
+	`, addr, limit)
+	if err != nil {
+		h.Logger.Error("wallet activity query failed", "addr", addr, "error", err)
+		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
+		return
+	}
+	defer func() {
+		if closer, ok := rows.(interface{ Close() error }); ok {
+			closer.Close()
+		}
+	}()
+
+	type activityRow struct {
+		TxHash    string    `json:"tx_hash"`
+		Wallet    string    `json:"wallet"`
+		Maker     string    `json:"maker"`
+		Taker     string    `json:"taker"`
+		TokenID   string    `json:"token_id"`
+		MarketID  string    `json:"market_id"`
+		Amount    float64   `json:"amount"`
+		Side      string    `json:"side"`
+		Timestamp time.Time `json:"timestamp"`
+	}
+
+	results := []activityRow{}
+	if sqlRows, ok := rows.(interface {
+		Next() bool
+		Scan(dest ...interface{}) error
+	}); ok {
+		for sqlRows.Next() {
+			var row activityRow
+			if err := sqlRows.Scan(&row.TxHash, &row.Wallet, &row.Maker, &row.Taker,
+				&row.TokenID, &row.MarketID, &row.Amount, &row.Side, &row.Timestamp); err != nil {
+				h.Logger.Error("wallet activity scan failed", "error", err)
+				continue
+			}
+			results = append(results, row)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"address": addr, "data": results, "count": len(results)})
+}
+
+// GetWalletOnchain queries onchain_trades for any wallet address (maker OR taker)
+// without requiring the wallet to be pre-watched. This is the way to look up
+// trade history for any arbitrary address from on-chain settlement data.
+func (h *APIHandler) GetWalletOnchain(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	addr := strings.ToLower(mux.Vars(r)["address"])
+	if addr == "" {
+		http.Error(w, `{"error":"address is required"}`, http.StatusBadRequest)
+		return
+	}
+	limit := parseLimit(getQuery(r, "limit", ""), 50, 200)
+
+	rows, err := h.ClickHouse.Query(ctx, `
+		SELECT tx_hash, maker, taker, token_id, amount, timestamp,
+		       if(lower(maker) = ?, 'sell', 'buy') AS side
+		FROM onchain_trades
+		WHERE lower(maker) = ? OR lower(taker) = ?
+		ORDER BY timestamp DESC
+		LIMIT ?
+	`, addr, addr, addr, limit)
+	if err != nil {
+		h.Logger.Error("wallet onchain query failed", "addr", addr, "error", err)
+		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
+		return
+	}
+	defer func() {
+		if closer, ok := rows.(interface{ Close() error }); ok {
+			closer.Close()
+		}
+	}()
+
+	type onchainRow struct {
+		TxHash    string    `json:"tx_hash"`
+		Maker     string    `json:"maker"`
+		Taker     string    `json:"taker"`
+		TokenID   string    `json:"token_id"`
+		Amount    string    `json:"amount"`
+		Timestamp time.Time `json:"timestamp"`
+		Side      string    `json:"side"`
+	}
+
+	results := []onchainRow{}
+	if sqlRows, ok := rows.(interface {
+		Next() bool
+		Scan(dest ...interface{}) error
+	}); ok {
+		for sqlRows.Next() {
+			var row onchainRow
+			if err := sqlRows.Scan(&row.TxHash, &row.Maker, &row.Taker,
+				&row.TokenID, &row.Amount, &row.Timestamp, &row.Side); err != nil {
+				h.Logger.Error("wallet onchain scan failed", "error", err)
+				continue
+			}
+			results = append(results, row)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"address": addr,
+		"source":  "onchain",
+		"data":    results,
+		"count":   len(results),
+	})
+}
+
+func (h *APIHandler) GetWalletSummary(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	addr := strings.ToLower(mux.Vars(r)["address"])
+	if addr == "" {
+		http.Error(w, `{"error":"address is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	rows, err := h.ClickHouse.Query(ctx, `
+		SELECT
+			count()              AS total_trades,
+			sum(amount)          AS total_volume,
+			countIf(side='buy')  AS buy_count,
+			countIf(side='sell') AS sell_count,
+			min(timestamp)       AS first_seen,
+			max(timestamp)       AS last_seen
+		FROM wallet_activity
+		WHERE wallet = ?
+	`, addr)
+	if err != nil {
+		h.Logger.Error("wallet summary query failed", "addr", addr, "error", err)
+		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
+		return
+	}
+	defer func() {
+		if closer, ok := rows.(interface{ Close() error }); ok {
+			closer.Close()
+		}
+	}()
+
+	summary := map[string]interface{}{
+		"address":      addr,
+		"total_trades": 0,
+		"total_volume": 0.0,
+		"buy_count":    0,
+		"sell_count":   0,
+		"first_seen":   nil,
+		"last_seen":    nil,
+	}
+	if sqlRows, ok := rows.(interface {
+		Next() bool
+		Scan(dest ...interface{}) error
+	}); ok && sqlRows.Next() {
+		var totalTrades, buyCount, sellCount uint64
+		var totalVolume float64
+		var firstSeen, lastSeen time.Time
+		if err := sqlRows.Scan(&totalTrades, &totalVolume, &buyCount, &sellCount, &firstSeen, &lastSeen); err == nil {
+			summary["total_trades"] = totalTrades
+			summary["total_volume"] = totalVolume
+			summary["buy_count"] = buyCount
+			summary["sell_count"] = sellCount
+			if !firstSeen.IsZero() {
+				summary["first_seen"] = firstSeen
+			}
+			if !lastSeen.IsZero() {
+				summary["last_seen"] = lastSeen
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(summary)
 }

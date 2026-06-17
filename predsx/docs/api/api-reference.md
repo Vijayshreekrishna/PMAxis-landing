@@ -515,11 +515,18 @@ curl "http://localhost:8088/v1/markets/0x9f8e.../trades?wallet=0xUserWalletAddre
 
 ### `GET /v1/markets/{id}/positions`
 Open positions for this specific market. Proxies to the Polymarket Data API
-`/market-positions` endpoint with `market={id}` (and `user={wallet}` if the
+`/positions` endpoint with `market={id}` (and `user={wallet}` if the
 `wallet` query param is supplied).
 
+The `wallet` param must be a full `0x` Polymarket proxy wallet address registered
+through the Polymarket CLOB frontend. Unregistered wallets return an empty array.
+
 ```bash
-curl "http://localhost:8088/v1/markets/0x9f8e.../positions?wallet=0xYourWalletAddress"
+# All positions in this market
+curl "http://localhost:8088/v1/markets/0x9f8e.../positions"
+
+# Filtered to one wallet
+curl "http://localhost:8088/v1/markets/0x9f8e.../positions?wallet=0xAdA100Db00Ca00073811820692005400218FcE1f"
 ```
 
 ---
@@ -654,9 +661,10 @@ curl "http://localhost:8088/v1/events?exchange=polymarket&limit=5"
 
 ### `GET /v1/positions`
 All open positions for a wallet. Proxies to the Polymarket Data API `/positions`.
+`wallet` is required — pass the full `0x` Polymarket proxy wallet address.
 
 ```bash
-curl "http://localhost:8088/v1/positions?wallet=0xYourWalletAddress"
+curl "http://localhost:8088/v1/positions?wallet=0xAdA100Db00Ca00073811820692005400218FcE1f"
 ```
 
 Returns `400 wallet is required` if omitted.
@@ -664,8 +672,170 @@ Returns `400 wallet is required` if omitted.
 ### `GET /v1/positions/closed`
 Closed/settled positions for a wallet. Same `wallet` (required) param.
 
+Note: Polymarket only records closed positions when a user explicitly sells through the
+CLOB. Positions settled by market resolution are not included.
+
 ```bash
-curl "http://localhost:8088/v1/positions/closed?wallet=0xYourWalletAddress"
+curl "http://localhost:8088/v1/positions/closed?wallet=0xAdA100Db00Ca00073811820692005400218FcE1f"
+```
+
+---
+
+## Wallet Activity
+
+Track and query on-chain trading activity for specific wallet addresses.
+
+**Two data sources:**
+- `wallet_activity` table — populated only for **watched** wallets (registered via `POST /v1/wallets/watch`). Richer data: includes `market_id`, normalized `amount`, and `side`.
+- `onchain_trades` table — raw Polygon RPC settlement records for **any** wallet, no pre-watching needed. `amount` is raw ERC-1155 units (divide by 1e6 for USDC).
+
+---
+
+### `POST /v1/wallets/watch`
+Register a wallet for activity tracking. Once watched, the processor hub writes
+trade events to `wallet_activity` in ClickHouse.
+
+**Body:** `{"address": "0x..."}`
+
+```bash
+curl -X POST http://localhost:8088/v1/wallets/watch \
+  -H "Content-Type: application/json" \
+  -d '{"address": "0xE111180000d2663C0091e4f400237545B87B996B"}'
+```
+
+**Response**
+```json
+{"address": "0xe111180000d2663c0091e4f400237545b87b996b", "watching": true}
+```
+
+---
+
+### `GET /v1/wallets/watched`
+List all currently watched wallet addresses.
+
+```bash
+curl http://localhost:8088/v1/wallets/watched
+```
+
+**Response**
+```json
+{
+  "wallets": ["0xe111180000d2663c0091e4f400237545b87b996b"],
+  "count": 1
+}
+```
+
+---
+
+### `DELETE /v1/wallets/{address}/watch`
+Stop tracking a wallet.
+
+```bash
+curl -X DELETE "http://localhost:8088/v1/wallets/0xE111180000d2663C0091e4f400237545B87B996B/watch"
+```
+
+**Response**
+```json
+{"address": "0xe111180000d2663c0091e4f400237545b87b996b", "watching": false}
+```
+
+---
+
+### `GET /v1/wallets/{address}/activity`
+Trade history from `wallet_activity` for a **watched** wallet. Returns `[]` if the
+wallet hasn't been watched or hasn't generated any activity since watching started.
+
+**Query params**
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `limit` | `50` | Max results (cap: 200) |
+
+```bash
+curl "http://localhost:8088/v1/wallets/0xE111180000d2663C0091e4f400237545B87B996B/activity?limit=5"
+```
+
+**Response**
+```json
+{
+  "address": "0xe111180000d2663c0091e4f400237545b87b996b",
+  "count": 5,
+  "data": [
+    {
+      "tx_hash": "0xabc...",
+      "wallet": "0xe111...",
+      "maker": "0xe111...",
+      "taker": "0xdef...",
+      "token_id": "12345",
+      "market_id": "67890",
+      "amount": 150.50,
+      "side": "buy",
+      "timestamp": "2026-06-18T10:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### `GET /v1/wallets/{address}/onchain`
+Raw on-chain settlement trades for **any** wallet (maker or taker side) — no
+pre-watching required. Reads directly from the `onchain_trades` ClickHouse table
+which is populated from Polygon RPC event logs.
+
+`amount` is in raw ERC-1155 units. Divide by `1000000` to get USDC.
+
+**Query params**
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `limit` | `50` | Max results (cap: 200) |
+
+```bash
+# Most active wallet — 147K on-chain trades
+curl "http://localhost:8088/v1/wallets/0xE111180000d2663C0091e4f400237545B87B996B/onchain?limit=5"
+```
+
+**Response**
+```json
+{
+  "address": "0xe111180000d2663c0091e4f400237545b87b996b",
+  "source": "onchain",
+  "count": 5,
+  "data": [
+    {
+      "tx_hash": "0xabc...",
+      "maker": "0xe111...",
+      "taker": "0xdef...",
+      "token_id": "12345",
+      "amount": "500000000",
+      "side": "sell",
+      "timestamp": "2026-06-18T10:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### `GET /v1/wallets/{address}/summary`
+Aggregated trading stats for a **watched** wallet from the `wallet_activity` table.
+
+```bash
+curl "http://localhost:8088/v1/wallets/0xE111180000d2663C0091e4f400237545B87B996B/summary"
+```
+
+**Response**
+```json
+{
+  "address": "0xe111180000d2663c0091e4f400237545b87b996b",
+  "total_trades": 147382,
+  "total_volume": 14595690.80,
+  "buy_count": 73200,
+  "sell_count": 74182,
+  "first_seen": "2024-01-15T08:22:00Z",
+  "last_seen": "2026-06-18T09:55:00Z"
+}
 ```
 
 ---

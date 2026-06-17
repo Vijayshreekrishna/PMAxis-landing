@@ -39,12 +39,12 @@ SHOW TABLES FROM default;
 |-------|-------------|-----------|
 | `market_metadata` | Market registry — slug, title, status, event_id, condition_id | Permanent |
 | `trades` | Normalized trade events from Polymarket WebSocket | 7 days |
-| `events_raw` | Raw WebSocket payloads (unprocessed) | 3 days |
+| `events_raw` | Raw WebSocket payloads (unprocessed) | 1 day |
 | `orderbook_history` | Orderbook snapshots | 2 days |
 | `onchain_trades` | On-chain Polygon RPC trade events | 14 days |
 | `market_metrics` | Per-market aggregated metrics (1s buckets) | 2 days |
-| `price_history_1m` | 1-minute OHLCV candles (SummingMergeTree) | Permanent |
-| `price_history_1h` | 1-hour OHLCV candles (SummingMergeTree) | Permanent |
+| `price_history_1m` | 1-minute OHLCV candles (SummingMergeTree) | 90 days |
+| `price_history_1h` | 1-hour OHLCV candles (SummingMergeTree) | 365 days |
 
 ---
 
@@ -254,25 +254,76 @@ WHERE market_id = '558935'
 
 ## On-Chain Trades
 
+> **Important:** `onchain_trades.amount` is stored as `String` (raw ERC-1155 token units,
+> not normalized). Always use `toFloat64OrZero(amount)` in aggregations, and divide by
+> `1000000` to convert to USDC. Example: `14595690799951` raw = ~$14.6M USDC.
+
 ### Recent on-chain trade events
 ```sql
-SELECT *
+SELECT tx_hash, maker, taker, token_id, amount, timestamp
 FROM default.onchain_trades
 ORDER BY timestamp DESC
 LIMIT 20;
 ```
 
-### On-chain volume by market
+### On-chain volume by token (last 24 hours)
 ```sql
 SELECT
-    market_id,
+    token_id,
     count() AS tx_count,
-    sum(size) AS onchain_volume
+    sum(toFloat64OrZero(amount)) / 1e6 AS onchain_volume_usdc
 FROM default.onchain_trades
 WHERE timestamp >= now() - INTERVAL 24 HOUR
-GROUP BY market_id
-ORDER BY onchain_volume DESC
+GROUP BY token_id
+ORDER BY onchain_volume_usdc DESC
 LIMIT 10;
+```
+
+### Top wallets by on-chain trading volume (all time)
+```sql
+SELECT
+    maker AS wallet,
+    count() AS trade_count,
+    sum(toFloat64OrZero(amount)) / 1e6 AS volume_usdc
+FROM default.onchain_trades
+GROUP BY maker
+ORDER BY trade_count DESC
+LIMIT 20;
+```
+
+> **Note:** The top addresses by count are Polymarket's own AMM bots. Retail wallet
+> `0xE111180000d2663C0091e4f400237545B87B996B` is the most active non-bot address
+> with ~147K trades. `0xAdA100Db00Ca00073811820692005400218FcE1f` has confirmed
+> open positions data via the Polymarket Data API.
+
+### On-chain history for a specific wallet
+```sql
+-- Replace the address with any 0x wallet
+SELECT tx_hash, maker, taker, token_id,
+       toFloat64OrZero(amount) / 1e6 AS amount_usdc,
+       if(lower(maker) = '0xe111180000d2663c0091e4f400237545b87b996b', 'sell', 'buy') AS side,
+       timestamp
+FROM default.onchain_trades
+WHERE lower(maker) = '0xe111180000d2663c0091e4f400237545b87b996b'
+   OR lower(taker) = '0xe111180000d2663c0091e4f400237545b87b996b'
+ORDER BY timestamp DESC
+LIMIT 50;
+```
+
+### Wallet activity summary (watched wallets — wallet_activity table)
+```sql
+SELECT
+    wallet,
+    count()                AS total_trades,
+    sum(amount) / 1e6      AS total_volume_usdc,
+    countIf(side='buy')    AS buys,
+    countIf(side='sell')   AS sells,
+    min(timestamp)         AS first_seen,
+    max(timestamp)         AS last_seen
+FROM default.wallet_activity
+GROUP BY wallet
+ORDER BY total_trades DESC
+LIMIT 20;
 ```
 
 ---

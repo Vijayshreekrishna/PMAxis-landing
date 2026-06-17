@@ -524,8 +524,8 @@ func processLog(ctx context.Context, producer *kafkaclient.TypedProducer[schemas
 		if len(vLog.Topics) < 4 {
 			return
 		}
-		from := common.HexToAddress(vLog.Topics[2].Hex()).Hex()
-		to := common.HexToAddress(vLog.Topics[3].Hex()).Hex()
+		from := strings.ToLower(common.HexToAddress(vLog.Topics[2].Hex()).Hex())
+		to := strings.ToLower(common.HexToAddress(vLog.Topics[3].Hex()).Hex())
 		if len(vLog.Data) >= 64 {
 			tokenID := new(big.Int).SetBytes(vLog.Data[:32]).String()
 			value := new(big.Int).SetBytes(vLog.Data[32:]).String()

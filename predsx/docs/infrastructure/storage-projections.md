@@ -15,13 +15,13 @@ Polymarket WebSocket (4 connections)
          ▼
    Storage Hub
          │
-         ├──► events_raw          (raw WS payloads — 3 day TTL)
+         ├──► events_raw          (raw WS payloads — 1 day TTL)
          ├──► trades              (normalized trades — 7 day TTL)
          ├──► orderbook_history   (L2 snapshots — 2 day TTL)
          ├──► market_metrics      (per-market aggregates — 2 day TTL)
          ├──► market_metadata     (market registry — permanent)
-         ├──► price_history_1m    (1-min OHLCV candles — permanent)
-         └──► price_history_1h    (1-hour OHLCV candles — permanent)
+         ├──► price_history_1m    (1-min OHLCV candles — 90 day TTL)
+         └──► price_history_1h    (1-hour OHLCV candles — 365 day TTL)
 
 Polygon RPC (on-chain)
          │
@@ -35,7 +35,7 @@ Polygon RPC (on-chain)
 
 ### TTL-Capped Tables (reach steady state, never grow past it)
 
-#### `events_raw` — 3 day TTL
+#### `events_raw` — 1 day TTL
 
 Raw WebSocket payloads before normalization. Every event type lands here first.
 
@@ -44,9 +44,9 @@ Raw WebSocket payloads before normalization. Every event type lands here first.
 | Write rate | ~200 events/sec across all markets |
 | Row size (compressed) | ~100–150 bytes |
 | Daily ingest | ~1.7 GB raw → ~200–400 MB compressed |
-| **Steady state** | **~600 MB – 1.2 GB** |
+| **Steady state** | **~200 – 400 MB** |
 
-> Highest write frequency table. Useful for debugging and replaying events but not for analytics.
+> Highest write frequency table. TTL reduced from 3 days to 1 day on 2026-06-18 to cap disk growth. Raw events are only useful for short-term debugging.
 
 ---
 
@@ -103,9 +103,9 @@ On-chain Polygon trade events fetched via RPC. Lower frequency than WebSocket tr
 
 ---
 
-### Permanent Tables (grow indefinitely)
+### TTL-Capped Candle Tables
 
-#### `price_history_1m` ⚠️ Primary disk growth driver
+#### `price_history_1m` — 90 day TTL
 
 1-minute OHLCV candles built automatically by a materialized view on `trades`.
 
@@ -115,13 +115,13 @@ On-chain Polygon trade events fetched via RPC. Lower frequency than WebSocket tr
 | Rows per day | 100–500 markets × 1440 min = 144k–720k rows/day |
 | Row size (compressed) | ~40 bytes |
 | **Daily growth** | **~6 – 30 MB/day** |
-| After 6 months | ~1 – 5 GB |
-| After 12 months | ~2 – 11 GB |
-| After 24 months | ~4 – 22 GB |
+| **Steady state (90 days)** | **~540 MB – 2.7 GB** |
+
+> TTL added 2026-06-18 — was previously growing unboundedly. 90 days of minute candles is more than enough for analytics and backtesting. Hourly candles (`price_history_1h`) retain a full year for longer-range queries.
 
 ---
 
-#### `price_history_1h`
+#### `price_history_1h` — 365 day TTL
 
 1-hour OHLCV candles. 60× fewer rows than `price_history_1m`.
 
@@ -129,7 +129,9 @@ On-chain Polygon trade events fetched via RPC. Lower frequency than WebSocket tr
 |---|---|
 | Rows per day | ~2.4k – 12k rows/day |
 | **Daily growth** | **~0.1 – 0.5 MB/day** |
-| After 24 months | ~70 – 350 MB |
+| **Steady state (365 days)** | **~37 – 183 MB** |
+
+> TTL added 2026-06-18 — was previously growing unboundedly.
 
 ---
 
@@ -150,25 +152,33 @@ One row per Polymarket market. Grows only as new markets open.
 ```
 30 GB total
 ├──  5 GB   OS + Docker engine + images (5 images × ~200 MB each)
-├──  2 GB   Kafka data + Zookeeper (capped by 2-hour retention + 1 GB limit)
+├──  1 GB   Kafka data + Zookeeper (capped by 2-hour retention + 200 MB/partition)
 ├──  0.5 GB Postgres (backfill offsets — tiny)
-├──  0.3 GB Docker container logs (capped at 10 MB × 3 files × 10 services)
+├──  0.6 GB Docker container logs (capped at 20 MB × 3 files × 10 services)
 │
-└── ~22 GB  ClickHouse
-    ├──  2–4 GB   TTL-capped tables (steady state, never exceeds this)
-    └── ~18 GB    Available for permanent tables (price_history_1m/1h)
+└── ~23 GB  ClickHouse
+    ├──  1–2 GB   TTL-capped short-term tables (events_raw, trades, orderbook, metrics)
+    ├──  0.5–3 GB price_history_1m (90-day rolling window)
+    └──  0.1–0.2 GB price_history_1h (365-day rolling window)
 ```
 
 ### When does 30 GB fill up?
 
-| Activity level | `price_history_1m` growth | 18 GB fills in |
-|---|---|---|
-| Quiet (100 active markets) | ~6 MB/day | ~8 years |
-| Normal (250 active markets) | ~15 MB/day | ~3 years |
-| Active (500 active markets) | ~30 MB/day | ~18 months |
-| Peak (1000+ markets, high volume) | ~60 MB/day | ~9 months |
+All ClickHouse tables now have TTLs, so disk reaches a steady state rather than growing indefinitely.
 
-**Expected for a live Polymarket setup: 18–36 months before disk action is needed.**
+| Table | Steady state |
+|---|---|
+| `events_raw` (1 day) | ~200–400 MB |
+| `trades` (7 days) | ~70–210 MB |
+| `orderbook_history` (2 days) | ~1.0–1.6 GB |
+| `market_metrics` (2 days) | ~100–200 MB |
+| `price_history_1m` (90 days) | ~540 MB–2.7 GB |
+| `price_history_1h` (365 days) | ~37–183 MB |
+| `market_metadata` (permanent) | ~5–25 MB |
+| `onchain_trades` (14 days) | ~50–150 MB |
+| **Total ClickHouse** | **~2–5.5 GB steady state** |
+
+**Disk is now bounded. No growth cliff expected.**
 
 ---
 
@@ -215,23 +225,34 @@ docker stats --no-stream
 
 ## If Disk Starts Running Low
 
-**Option 1 — Add TTL to `price_history_1m` (keep last 90 days of minute candles)**
-```sql
-ALTER TABLE price_history_1m MODIFY TTL timestamp + INTERVAL 90 DAY;
-```
-The 1-hour candles (`price_history_1h`) still cover everything older for backtesting. This single change gives years of additional headroom.
+The following TTL changes have already been applied (2026-06-18). If disk pressure returns, these are the remaining levers:
 
-**Option 2 — Shorten `events_raw` TTL (from 3 days to 1 day)**
+**Option 1 — Shorten `price_history_1m` TTL further (e.g. 30 days)**
 ```sql
-ALTER TABLE events_raw MODIFY TTL timestamp + INTERVAL 1 DAY;
+ALTER TABLE price_history_1m MODIFY TTL timestamp + INTERVAL 30 DAY;
 ```
-Saves ~400–800 MB immediately. Fine to do — raw events are only useful for short-term debugging.
+Saves up to ~2 GB. Use this before anything else — hourly candles still cover older data.
 
-**Option 3 — Shorten `orderbook_history` TTL (from 2 days to 12 hours)**
+**Option 2 — Shorten `orderbook_history` TTL (from 2 days to 12 hours)**
 ```sql
 ALTER TABLE orderbook_history MODIFY TTL timestamp + INTERVAL 12 HOUR;
 ```
 Saves ~500–800 MB immediately. Real-time signals only need recent orderbook snapshots.
+
+**Option 3 — Shorten `onchain_trades` TTL (from 14 days to 7 days)**
+```sql
+ALTER TABLE onchain_trades MODIFY TTL timestamp + INTERVAL 7 DAY;
+```
+
+### Already applied
+
+| Change | Date | Saved |
+|---|---|---|
+| `events_raw` TTL: 3 days → 1 day | 2026-06-18 | ~400–800 MB |
+| `price_history_1m` TTL: permanent → 90 days | 2026-06-18 | Growing unboundedly → capped |
+| `price_history_1h` TTL: permanent → 365 days | 2026-06-18 | Capped |
+| Kafka retention bytes: 1 GB → 200 MB/partition | 2026-06-18 | ~4 GB |
+| Log rotation added to all hub-* services | 2026-06-18 | Prevents unbounded log growth |
 
 ---
 

@@ -13,15 +13,17 @@
 
 ---
 
-## 🚀 Features
+## Features
 
-- **Live Ingestion**: Connects to Polymarket WebSockets and on-chain RPC (with automatic multi-endpoint failover/rotation — see [`docs/rpc-failover-design.md`](predsx/docs/rpc-failover-design.md)) with robust connection pooling and pacing.
+- **Live Ingestion**: Connects to Polymarket WebSockets and on-chain Polygon RPC (with automatic multi-endpoint failover/rotation — see [`predsx/docs/infrastructure/rpc-failover-design.md`](predsx/docs/infrastructure/rpc-failover-design.md)) with robust connection pooling and pacing.
 - **Consolidated Hub Architecture**: 5 specialized Go services (`discovery`, `ingestion`, `processor`, `storage`, `api`) decoupled by Apache Kafka event streams.
 - **In-Memory Orderbooks**: Maintains high-performance L2 orderbooks and live price state directly in Go, persisting snapshots to Redis.
-- **Unified API & Real-Time Gateway**: REST endpoints (`/v1/*`) with Redis-backed response caching and rate limiting, plus a WebSocket hub (`/stream`) pushing live trades, orderbook updates, prices, and signals — see [`docs/api-reference.md`](predsx/docs/api-reference.md).
+- **Wallet Activity Tracking**: Watch any wallet address to track on-chain trades via the `wallet_activity` ClickHouse table; query raw settlement history for any wallet with no pre-watching needed via `/v1/wallets/{address}/onchain`.
+- **Unified API & Real-Time Gateway**: REST endpoints (`/v1/*`) with Redis-backed response caching and rate limiting, plus a WebSocket hub (`/stream`) pushing live trades, orderbook updates, prices, and signals — see [`predsx/docs/api/api-reference.md`](predsx/docs/api/api-reference.md).
+- **Interactive API Docs**: Scalar-powered docs page at `/docs` with theme switcher and live try-it-out.
 - **High-Throughput Storage**: Batch-inserts trades, candles, and metrics into ClickHouse, with Redis for hot state and PostgreSQL for relational/offset data.
 
-## 🏗️ Architecture
+## Architecture
 
 The system is decoupled via Kafka to allow horizontal scaling of any individual hub.
 
@@ -44,23 +46,21 @@ Polymarket (WebSocket + On-chain RPC)
 [ API Hub ]        ──► REST (/v1/*) & WebSocket Gateway (port 8088)
 ```
 
-## 📂 Project Structure
+## Project Structure
 
 - `predsx/libs/`: Shared production-grade libraries (Kafka clients, ClickHouse, Redis, Postgres, WebSocket pools, schemas, retry/config/logging).
 - `predsx/services/`: The 5 Core Hub services — `discovery`, `ingestion`, `processor`, `storage`, `api`.
 - `predsx/cmd/predsx/`: A built-in developer CLI tool for testing data streams directly from the terminal.
-- `predsx/deployments/`: Docker Compose configurations (local + VPS) that orchestrate the full container stack.
-- `predsx/docs/`: Design docs and API reference (RPC failover design, API reference, API improvements).
+- `predsx/deployments/`: Docker Compose configurations that orchestrate the full container stack.
+- `predsx/docs/`: Documentation organized by topic — see [`predsx/docs/README.md`](predsx/docs/README.md) for the full index.
 
 ---
 
-## 🐳 Getting Started (Docker)
+## Getting Started (Docker)
 
 The easiest way to start the entire data pipeline (Kafka, Redis, ClickHouse, PostgreSQL, and all 5 Core Hub services) is via the provided Windows batch scripts:
 
 ```bash
-# From the project root
-
 # 1. Build and start the full stack in the background
 start-docker.bat
 
@@ -70,12 +70,29 @@ stop-docker.bat
 
 > **Note:** The first `start` may take a few minutes as Go downloads module dependencies inside the containers. Subsequent boots are heavily cached and very fast.
 
-### Health Checks & Monitoring
+### Health Check
 
-Verify the API gateway and WebSocket hub are healthy:
 ```bash
 curl http://localhost:8088/health
 ```
 
-Prometheus metrics are exposed by every service at:
-`http://localhost:<service-port>/metrics`
+### API Docs
+
+Open `http://localhost:8088/docs` in a browser for the interactive Scalar API reference with live try-it-out.
+
+---
+
+## Documentation
+
+| Topic | File |
+|-------|------|
+| API endpoint reference | [`predsx/docs/api/api-reference.md`](predsx/docs/api/api-reference.md) |
+| VPS deploy guide | [`predsx/docs/deployment/vps-deploy.md`](predsx/docs/deployment/vps-deploy.md) |
+| Environment variables | [`predsx/docs/deployment/env-vars.md`](predsx/docs/deployment/env-vars.md) |
+| Rollback procedures | [`predsx/docs/deployment/rollback.md`](predsx/docs/deployment/rollback.md) |
+| ClickHouse query guide | [`predsx/docs/data/clickhouse-queries.md`](predsx/docs/data/clickhouse-queries.md) |
+| Monitoring & alerting | [`predsx/docs/operations/monitoring.md`](predsx/docs/operations/monitoring.md) |
+| Troubleshooting | [`predsx/docs/operations/troubleshooting.md`](predsx/docs/operations/troubleshooting.md) |
+| Port security | [`predsx/docs/infrastructure/port-security.md`](predsx/docs/infrastructure/port-security.md) |
+| Storage projections | [`predsx/docs/infrastructure/storage-projections.md`](predsx/docs/infrastructure/storage-projections.md) |
+| RPC failover design | [`predsx/docs/infrastructure/rpc-failover-design.md`](predsx/docs/infrastructure/rpc-failover-design.md) |

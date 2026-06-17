@@ -161,7 +161,7 @@ func main() {
 
     function applyTheme(theme) {
       localStorage.setItem('predsx-docs-theme', theme);
-      document.getElementById('api-reference').setAttribute('data-configuration', buildConfig(theme));
+      location.reload();
     }
 
     var saved = localStorage.getItem('predsx-docs-theme') || 'deepSpace';
@@ -210,6 +210,14 @@ func main() {
 		api.HandleFunc("/positions", h.GetPositions).Methods("GET")
 		api.HandleFunc("/positions/closed", h.GetClosedPositions).Methods("GET")
 		api.HandleFunc("/markets/{id}/signals", h.GetSignalsByMarket).Methods("GET")
+
+		// Wallet Activity Routes
+		api.HandleFunc("/wallets/watch", h.WatchWallet).Methods("POST")
+		api.HandleFunc("/wallets/watched", h.GetWatchedWallets).Methods("GET")
+		api.HandleFunc("/wallets/{address}/watch", h.UnwatchWallet).Methods("DELETE")
+		api.HandleFunc("/wallets/{address}/activity", h.GetWalletActivity).Methods("GET")
+		api.HandleFunc("/wallets/{address}/onchain", h.GetWalletOnchain).Methods("GET")
+		api.HandleFunc("/wallets/{address}/summary", h.GetWalletSummary).Methods("GET")
 
 		// GraphQL Placeholder
 		r.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {

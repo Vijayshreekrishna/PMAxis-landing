@@ -230,3 +230,24 @@ func (e *OnChainTradeEvent) Validate() error {
 	return nil
 }
 
+// WalletActivityEvent is emitted when a watched wallet is involved in an on-chain trade.
+type WalletActivityEvent struct {
+	TxHash    string    `json:"tx_hash"`
+	Wallet    string    `json:"wallet"`    // the watched address (lowercase)
+	Maker     string    `json:"maker"`
+	Taker     string    `json:"taker"`
+	TokenID   string    `json:"token_id"`
+	MarketID  string    `json:"market_id"`
+	Amount    float64   `json:"amount"`    // normalized (6 decimal places)
+	Side      string    `json:"side"`      // "buy" or "sell" relative to the watched wallet
+	Timestamp time.Time `json:"timestamp"`
+	Version   string    `json:"version"`
+}
+
+func (e *WalletActivityEvent) Validate() error {
+	if e.TxHash == "" || e.Wallet == "" {
+		return fmt.Errorf("tx_hash and wallet are required")
+	}
+	return nil
+}
+

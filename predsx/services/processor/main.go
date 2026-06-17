@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -61,11 +62,14 @@ func main() {
 		signalsTopic := config.GetEnv("SIGNALS_TOPIC", "predsx.signals.live")
 		onChainTopic := config.GetEnv("ONCHAIN_TRADES_TOPIC", "predsx.trades.onchain")
 
+		walletTopic := config.GetEnv("WALLET_ACTIVITY_TOPIC", "predsx.wallet.activity")
+
 		kafkaclient.EnsureTopics(ctx, []string{kafkaBrokers}, map[string]int{
 			tradesLiveTopic: 6,
 			orderbookTopic:  6,
 			pricesTopic:     3,
 			signalsTopic:    6,
+			walletTopic:     3,
 		}, svc.Logger)
 
 		// 1. START TRADE ENGINE
@@ -84,6 +88,9 @@ func main() {
 		if ch != nil {
 			go startBacktesterAPI(ctx, svc)
 		}
+
+		// 6. START WALLET TRACKER
+		go startWalletTracker(ctx, svc, kafkaBrokers, rdb, ch)
 
 		<-ctx.Done()
 		return nil
@@ -474,6 +481,84 @@ func emitSignal(ctx context.Context, producer *kafkaclient.TypedProducer[schemas
 	producer.Publish(ctx, market, evt)
 	payload, _ := json.Marshal(evt)
 	rdb.Set(ctx, fmt.Sprintf("signal:latest:%s:%s", market, sType), payload, 1*time.Hour)
+}
+
+// --- WALLET TRACKER ---
+
+func startWalletTracker(ctx context.Context, svc *service.BaseService, brokers string, rdb redisclient.Interface, ch clickhouse.Interface) {
+	onChainTopic := config.GetEnv("ONCHAIN_TRADES_TOPIC", "predsx.trades.onchain")
+	walletTopic := config.GetEnv("WALLET_ACTIVITY_TOPIC", "predsx.wallet.activity")
+
+	consumer := kafkaclient.NewTypedConsumer[schemas.OnChainTradeEvent]([]string{brokers}, onChainTopic, "processor-wallet-tracker", svc.Logger)
+	defer consumer.Close()
+
+	producer := kafkaclient.NewTypedProducer[schemas.WalletActivityEvent]([]string{brokers}, walletTopic, svc.Logger)
+	defer producer.Close()
+
+	svc.Logger.Info("wallet-tracker component started")
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			evt, err := consumer.Fetch(ctx)
+			if err != nil {
+				continue
+			}
+
+			maker := strings.ToLower(evt.Maker)
+			taker := strings.ToLower(evt.Taker)
+
+			watchedMaker, _ := rdb.SIsMember(ctx, "watched:wallets", maker).Result()
+			watchedTaker, _ := rdb.SIsMember(ctx, "watched:wallets", taker).Result()
+			if !watchedMaker && !watchedTaker {
+				continue
+			}
+
+			amt, _ := strconv.ParseFloat(evt.Amount, 64)
+			normalizedAmt := amt / 1e6
+
+			type walletSide struct {
+				addr string
+				side string
+			}
+			var watched []walletSide
+			if watchedMaker {
+				watched = append(watched, walletSide{maker, "sell"})
+			}
+			if watchedTaker {
+				watched = append(watched, walletSide{taker, "buy"})
+			}
+
+			// Resolve token → market ID via Redis (same pattern used everywhere else)
+			marketID, _ := rdb.Get(ctx, "token:"+evt.TokenID+":market_id").Result()
+			if marketID == "" {
+				marketID = evt.TokenID // fallback to token ID if not yet mapped
+			}
+
+			for _, w := range watched {
+				activity := schemas.WalletActivityEvent{
+					TxHash:    evt.TxHash,
+					Wallet:    w.addr,
+					Maker:     maker,
+					Taker:     taker,
+					TokenID:   evt.TokenID,
+					MarketID:  marketID,
+					Amount:    normalizedAmt,
+					Side:      w.side,
+					Timestamp: evt.Timestamp,
+					Version:   schemas.VersionV1,
+				}
+				producer.Publish(ctx, w.addr, activity)
+				if ch != nil {
+					ch.Exec(ctx, `INSERT INTO wallet_activity (tx_hash, wallet, maker, taker, token_id, market_id, amount, side, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+						activity.TxHash, activity.Wallet, activity.Maker, activity.Taker,
+						activity.TokenID, activity.MarketID, activity.Amount, activity.Side, activity.Timestamp)
+				}
+			}
+		}
+	}
 }
 
 // --- BACKTESTER API ---
