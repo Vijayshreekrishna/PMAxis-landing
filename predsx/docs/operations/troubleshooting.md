@@ -363,10 +363,11 @@ docker exec -it package-clickhouse-1 clickhouse-client --query "
 ```
 
 **Permanent fix:** `deployments/clickhouse-logging.xml` is mounted into the ClickHouse
-container and sets a 7-day TTL on all system tables plus reduces `text_log` to
-`warning` level. This is already wired into `docker-compose.yml`. If deploying fresh,
-the truncation above is still needed once to clear any bloat that accumulated before
-the config was applied.
+container and sets short TTLs on all system tables (1 day for high-volume tables like
+`trace_log` and `processors_profile_log`, 2 days for `query_log`/`part_log`, 3 days
+for the rest) plus reduces `text_log` to `warning` level. This is already wired into
+`docker-compose.yml`. If deploying fresh, the truncation above is still needed once to
+clear any bloat that accumulated before the config was applied.
 
 See [vps-deploy.md — ClickHouse System Log Auto-Deletion](../deployment/vps-deploy.md) for full details.
 

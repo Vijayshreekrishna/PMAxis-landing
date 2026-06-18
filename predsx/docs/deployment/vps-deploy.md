@@ -884,10 +884,13 @@ system table and reduces `text_log` verbosity from `trace` to `warning`.
 
 | Table | TTL | Notes |
 |---|---|---|
-| `text_log` | 7 days | Level reduced to `warning` — drops ~95% of write volume |
-| `trace_log` | 3 days | Very high volume, short retention |
-| `processors_profile_log` | 3 days | High volume, short retention |
-| All other system tables | 7 days | `query_log`, `part_log`, `metric_log`, etc. |
+| `text_log` | 7 days | Level reduced to `warning` — drops ~95% of write volume, so 7 days = ~50 MB |
+| `trace_log` | 1 day | ~200 MB/day at full verbosity |
+| `processors_profile_log` | 1 day | ~100 MB/day |
+| `query_log` | 2 days | ~150 MB/day |
+| `part_log` | 2 days | ~150 MB/day |
+| `metric_log` | 3 days | ~25 MB/day |
+| All other system tables | 3 days | `asynchronous_insert_log`, `query_views_log`, etc. |
 
 After this config is applied, system tables stay under ~50 MB total and auto-clean daily.
 
