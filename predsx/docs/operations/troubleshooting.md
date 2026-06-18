@@ -325,6 +325,53 @@ curl "http://YOUR_VPS_IP:8088/debug/markets?debug_token=your-secret-token"
 
 ---
 
+## 14. Disk fills up steadily — ClickHouse system log tables
+
+**Symptom:**
+Disk usage climbs 1–2% per hour even though your actual market/trade data is small.
+`docker system df` shows Local Volumes at 10–15 GB. ClickHouse table query reveals the
+culprit:
+
+```bash
+docker exec -it package-clickhouse-1 clickhouse-client --query \
+  "SELECT table, formatReadableSize(sum(bytes)) AS size FROM system.parts WHERE active GROUP BY table ORDER BY sum(bytes) DESC"
+```
+
+Output shows `text_log`, `query_log`, `trace_log` etc. at several GB while your actual
+tables (`trades`, `onchain_trades`, `market_metadata`) are under 200 MB total.
+
+**Root cause:** ClickHouse logs every internal operation into its own system tables by
+default with **no expiry**. On a large server this is negligible; on a 4 GB VPS it
+eventually fills the disk.
+
+**Immediate fix — truncate now:**
+```bash
+docker exec -it package-clickhouse-1 clickhouse-client --query "
+  TRUNCATE TABLE system.text_log;
+  TRUNCATE TABLE system.trace_log;
+  TRUNCATE TABLE system.part_log;
+  TRUNCATE TABLE system.query_log;
+  TRUNCATE TABLE system.processors_profile_log;
+  TRUNCATE TABLE system.metric_log;
+  TRUNCATE TABLE system.asynchronous_insert_log;
+  TRUNCATE TABLE system.query_views_log;
+  TRUNCATE TABLE system.asynchronous_metric_log;
+  TRUNCATE TABLE system.error_log;
+  TRUNCATE TABLE system.background_schedule_pool_log;
+  TRUNCATE TABLE system.query_metric_log;
+"
+```
+
+**Permanent fix:** `deployments/clickhouse-logging.xml` is mounted into the ClickHouse
+container and sets a 7-day TTL on all system tables plus reduces `text_log` to
+`warning` level. This is already wired into `docker-compose.yml`. If deploying fresh,
+the truncation above is still needed once to clear any bloat that accumulated before
+the config was applied.
+
+See [vps-deploy.md — ClickHouse System Log Auto-Deletion](../deployment/vps-deploy.md) for full details.
+
+---
+
 ## 10. Hub shows `(unhealthy)` in `docker ps`
 
 **Symptom:**

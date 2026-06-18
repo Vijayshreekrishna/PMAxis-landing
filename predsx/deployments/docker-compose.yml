@@ -120,6 +120,7 @@ services:
       - "127.0.0.1:9000:9000"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse-logging.xml:/etc/clickhouse-server/config.d/logging.xml:ro
     environment:
       - CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
       - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-}

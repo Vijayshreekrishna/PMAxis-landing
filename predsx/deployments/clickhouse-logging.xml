@@ -1,0 +1,51 @@
+<clickhouse>
+    <!-- Reduce text_log verbosity: only warnings and above (drops ~95% of volume) -->
+    <text_log>
+        <level>warning</level>
+        <ttl>event_date + INTERVAL 7 DAY</ttl>
+    </text_log>
+
+    <trace_log>
+        <ttl>event_date + INTERVAL 3 DAY</ttl>
+    </trace_log>
+
+    <query_log>
+        <ttl>event_date + INTERVAL 7 DAY</ttl>
+    </query_log>
+
+    <part_log>
+        <ttl>event_date + INTERVAL 7 DAY</ttl>
+    </part_log>
+
+    <metric_log>
+        <ttl>event_date + INTERVAL 7 DAY</ttl>
+    </metric_log>
+
+    <processors_profile_log>
+        <ttl>event_date + INTERVAL 3 DAY</ttl>
+    </processors_profile_log>
+
+    <asynchronous_insert_log>
+        <ttl>event_date + INTERVAL 7 DAY</ttl>
+    </asynchronous_insert_log>
+
+    <query_views_log>
+        <ttl>event_date + INTERVAL 7 DAY</ttl>
+    </query_views_log>
+
+    <asynchronous_metric_log>
+        <ttl>event_date + INTERVAL 7 DAY</ttl>
+    </asynchronous_metric_log>
+
+    <error_log>
+        <ttl>event_date + INTERVAL 7 DAY</ttl>
+    </error_log>
+
+    <background_schedule_pool_log>
+        <ttl>event_date + INTERVAL 7 DAY</ttl>
+    </background_schedule_pool_log>
+
+    <query_metric_log>
+        <ttl>event_date + INTERVAL 7 DAY</ttl>
+    </query_metric_log>
+</clickhouse>

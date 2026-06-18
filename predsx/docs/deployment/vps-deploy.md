@@ -869,6 +869,54 @@ sudo nano /usr/local/bin/predsx-health.sh
 
 ---
 
+### ClickHouse System Log Auto-Deletion (TTL)
+
+By default ClickHouse logs every internal operation into its own system tables
+(`system.text_log`, `system.query_log`, `system.trace_log`, etc.) with **no expiry**.
+On a small VPS these tables silently grow to 6+ GB while your actual business data stays
+under 200 MB.
+
+The fix is a config file mounted into the ClickHouse container that sets TTL on every
+system table and reduces `text_log` verbosity from `trace` to `warning`.
+
+**Config file:** `deployments/clickhouse-logging.xml`
+(mounted as `/etc/clickhouse-server/config.d/logging.xml` inside the container)
+
+| Table | TTL | Notes |
+|---|---|---|
+| `text_log` | 7 days | Level reduced to `warning` — drops ~95% of write volume |
+| `trace_log` | 3 days | Very high volume, short retention |
+| `processors_profile_log` | 3 days | High volume, short retention |
+| All other system tables | 7 days | `query_log`, `part_log`, `metric_log`, etc. |
+
+After this config is applied, system tables stay under ~50 MB total and auto-clean daily.
+
+**To manually truncate existing bloat (run once on a fresh VPS or after upgrading):**
+```bash
+docker exec -it package-clickhouse-1 clickhouse-client --query "
+  TRUNCATE TABLE system.text_log;
+  TRUNCATE TABLE system.trace_log;
+  TRUNCATE TABLE system.part_log;
+  TRUNCATE TABLE system.query_log;
+  TRUNCATE TABLE system.processors_profile_log;
+  TRUNCATE TABLE system.metric_log;
+  TRUNCATE TABLE system.asynchronous_insert_log;
+  TRUNCATE TABLE system.query_views_log;
+  TRUNCATE TABLE system.asynchronous_metric_log;
+  TRUNCATE TABLE system.error_log;
+  TRUNCATE TABLE system.background_schedule_pool_log;
+  TRUNCATE TABLE system.query_metric_log;
+"
+```
+
+**To verify system table sizes after restart:**
+```bash
+docker exec -it package-clickhouse-1 clickhouse-client --query \
+  "SELECT table, formatReadableSize(sum(bytes)) AS size FROM system.parts WHERE active GROUP BY table ORDER BY sum(bytes) DESC"
+```
+
+---
+
 ### Incident History
 
 | Date | Problem | Root Cause | Fix |
@@ -877,12 +925,13 @@ sudo nano /usr/local/bin/predsx-health.sh
 | 2026-06-14 | ZooKeeper crash → Kafka DNS failure | Cascading failure from disk full | Freed disk, restarted ZooKeeper + Kafka |
 | 2026-06-14 | Kafka OOM killed every ~40s | No swap, 512M cgroup limit too tight for JVM off-heap | Added 2GB swap, increased limit to 768M with G1GC tuning |
 | 2026-06-14 | ClickHouse MEMORY_LIMIT_EXCEEDED | 1G Docker limit → 921MB internal limit insufficient for background merges | Increased Docker limit to 1.5G |
+| 2026-06-19 | Disk 51% → 62% in 21 hours | ClickHouse internal system log tables had no TTL — grew to 6+ GB while actual data was <200 MB | Truncated system tables, added `clickhouse-logging.xml` with TTLs and warning-level `text_log` |
 
 ---
 
 ## Related Docs
 
-- [port-security.md](port-security.md) — Port bindings, UFW rules, TLS/Caddy setup
-- [api-reference.md](api-reference.md) — Full API endpoint reference with all response schemas
-- [storage-projections.md](storage-projections.md) — Disk and RAM capacity planning
-- [info.md](info.md) — Full project history and development log
+- [../infrastructure/port-security.md](../infrastructure/port-security.md) — Port bindings, UFW rules, TLS/Caddy setup
+- [../api/api-reference.md](../api/api-reference.md) — Full API endpoint reference with all response schemas
+- [../infrastructure/storage-projections.md](../infrastructure/storage-projections.md) — Disk and RAM capacity planning
+- [../info.md](../info.md) — Full project history and development log
