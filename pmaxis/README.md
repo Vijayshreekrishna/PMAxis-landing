@@ -15,11 +15,11 @@
 
 ## Features
 
-- **Live Ingestion**: Connects to Polymarket WebSockets and on-chain Polygon RPC (with automatic multi-endpoint failover/rotation — see [`pmaxis/docs/infrastructure/rpc-failover-design.md`](pmaxis/docs/infrastructure/rpc-failover-design.md)) with robust connection pooling and pacing.
+- **Live Ingestion**: Connects to Polymarket WebSockets and on-chain Polygon RPC (with automatic multi-endpoint failover/rotation — see [`docs/infrastructure/rpc-failover-design.md`](docs/infrastructure/rpc-failover-design.md)) with robust connection pooling and pacing.
 - **Consolidated Hub Architecture**: 5 specialized Go services (`discovery`, `ingestion`, `processor`, `storage`, `api`) decoupled by Apache Kafka event streams.
 - **In-Memory Orderbooks**: Maintains high-performance L2 orderbooks and live price state directly in Go, persisting snapshots to Redis.
 - **Wallet Activity Tracking**: Watch any wallet address to track on-chain trades via the `wallet_activity` ClickHouse table; query raw settlement history for any wallet with no pre-watching needed via `/v1/wallets/{address}/onchain`.
-- **Unified API & Real-Time Gateway**: REST endpoints (`/v1/*`) with Redis-backed response caching and rate limiting, plus a WebSocket hub (`/stream`) pushing live trades, orderbook updates, prices, and signals — see [`pmaxis/docs/api/api-reference.md`](pmaxis/docs/api/api-reference.md).
+- **Unified API & Real-Time Gateway**: REST endpoints (`/v1/*`) with Redis-backed response caching and rate limiting, plus a WebSocket hub (`/stream`) pushing live trades, orderbook updates, prices, and signals — see [`docs/api/api-reference.md`](docs/api/api-reference.md).
 - **Interactive API Docs**: Scalar-powered docs page at `/docs` with theme switcher and live try-it-out.
 - **High-Throughput Storage**: Batch-inserts trades, candles, and metrics into ClickHouse, with Redis for hot state and PostgreSQL for relational/offset data.
 
@@ -48,17 +48,17 @@ Polymarket (WebSocket + On-chain RPC)
 
 ## Project Structure
 
-- `pmaxis/libs/`: Shared production-grade libraries (Kafka clients, ClickHouse, Redis, Postgres, WebSocket pools, schemas, retry/config/logging).
-- `pmaxis/services/`: The 5 Core Hub services — `discovery`, `ingestion`, `processor`, `storage`, `api`.
-- `pmaxis/cmd/pmaxis/`: A built-in developer CLI tool for testing data streams directly from the terminal.
-- `pmaxis/deployments/`: Docker Compose configurations that orchestrate the full container stack.
-- `pmaxis/docs/`: Documentation organized by topic — see [`pmaxis/docs/README.md`](pmaxis/docs/README.md) for the full index.
+- `libs/`: Shared production-grade libraries (Kafka clients, ClickHouse, Redis, Postgres, WebSocket pools, schemas, retry/config/logging).
+- `services/`: The 5 Core Hub services — `discovery`, `ingestion`, `processor`, `storage`, `api`.
+- `cmd/pmaxis/`: A built-in developer CLI tool for testing data streams directly from the terminal.
+- `deployments/`: Docker Compose configurations that orchestrate the full container stack.
+- `docs/`: Documentation organized by topic — see [`docs/README.md`](docs/README.md) for the full index.
 
 ---
 
 ## Getting Started (Docker)
 
-The easiest way to start the entire data pipeline (Kafka, Redis, ClickHouse, PostgreSQL, and all 5 Core Hub services) is via the provided Windows batch scripts:
+The easiest way to start the entire data pipeline (Kafka, Redis, ClickHouse, PostgreSQL, and all 5 Core Hub services) is via the provided Windows batch scripts (run from the repo root, one level up):
 
 ```bash
 # 1. Build and start the full stack in the background
@@ -86,13 +86,13 @@ Open `http://localhost:8088/docs` in a browser for the interactive Scalar API re
 
 | Topic | File |
 |-------|------|
-| API endpoint reference | [`pmaxis/docs/api/api-reference.md`](pmaxis/docs/api/api-reference.md) |
-| VPS deploy guide | [`pmaxis/docs/deployment/vps-deploy.md`](pmaxis/docs/deployment/vps-deploy.md) |
-| Environment variables | [`pmaxis/docs/deployment/env-vars.md`](pmaxis/docs/deployment/env-vars.md) |
-| Rollback procedures | [`pmaxis/docs/deployment/rollback.md`](pmaxis/docs/deployment/rollback.md) |
-| ClickHouse query guide | [`pmaxis/docs/data/clickhouse-queries.md`](pmaxis/docs/data/clickhouse-queries.md) |
-| Monitoring & alerting | [`pmaxis/docs/operations/monitoring.md`](pmaxis/docs/operations/monitoring.md) |
-| Troubleshooting | [`pmaxis/docs/operations/troubleshooting.md`](pmaxis/docs/operations/troubleshooting.md) |
-| Port security | [`pmaxis/docs/infrastructure/port-security.md`](pmaxis/docs/infrastructure/port-security.md) |
-| Storage projections | [`pmaxis/docs/infrastructure/storage-projections.md`](pmaxis/docs/infrastructure/storage-projections.md) |
-| RPC failover design | [`pmaxis/docs/infrastructure/rpc-failover-design.md`](pmaxis/docs/infrastructure/rpc-failover-design.md) |
+| API endpoint reference | [`docs/api/api-reference.md`](docs/api/api-reference.md) |
+| VPS deploy guide | [`docs/deployment/vps-deploy.md`](docs/deployment/vps-deploy.md) |
+| Environment variables | [`docs/deployment/env-vars.md`](docs/deployment/env-vars.md) |
+| Rollback procedures | [`docs/deployment/rollback.md`](docs/deployment/rollback.md) |
+| ClickHouse query guide | [`docs/data/clickhouse-queries.md`](docs/data/clickhouse-queries.md) |
+| Monitoring & alerting | [`docs/operations/monitoring.md`](docs/operations/monitoring.md) |
+| Troubleshooting | [`docs/operations/troubleshooting.md`](docs/operations/troubleshooting.md) |
+| Port security | [`docs/infrastructure/port-security.md`](docs/infrastructure/port-security.md) |
+| Storage projections | [`docs/infrastructure/storage-projections.md`](docs/infrastructure/storage-projections.md) |
+| RPC failover design | [`docs/infrastructure/rpc-failover-design.md`](docs/infrastructure/rpc-failover-design.md) |

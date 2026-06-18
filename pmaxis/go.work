@@ -1,0 +1,21 @@
+go 1.24.0
+
+use (
+	./cmd/pmaxis
+	./libs/clickhouse-client
+	./libs/config
+	./libs/crypto
+	./libs/kafka-client
+	./libs/logger
+	./libs/postgres-client
+	./libs/redis-client
+	./libs/retry-utils
+	./libs/schemas
+	./libs/service
+	./libs/websocket-client
+	./services/api
+	./services/discovery
+	./services/ingestion
+	./services/processor
+	./services/storage
+)

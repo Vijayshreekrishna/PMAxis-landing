@@ -1,6 +1,6 @@
-# 🍳 PredSX: The Master Recipe for Future Growth
+﻿# 🍳 PMAxis: The Master Recipe for Future Growth
 
-This "recipe" outlines the strategic roadmap for evolving PredSX into a world-class trading platform. Each "Dish" represents a major feature set and its implementation plan.
+This "recipe" outlines the strategic roadmap for evolving PMAxis into a world-class trading platform. Each "Dish" represents a major feature set and its implementation plan.
 
 ---
 
@@ -34,15 +34,15 @@ This "recipe" outlines the strategic roadmap for evolving PredSX into a world-cl
 **Goal:** Track your wins and stay notified on the go.
 *   **Ingredients:** Postgres (Positions), Telegram Bot API, Discord Webhooks.
 *   **The Process:**
-    1.  **Portfolio View:** Add a "Wallet" page to **PredSX-Stat** showing open positions, total equity, and daily PnL.
+    1.  **Portfolio View:** Add a "Wallet" page to **PMAxis-Stat** showing open positions, total equity, and daily PnL.
     2.  **Social Service:** Build a `notification-service` that listens to Kafka and sends high-value alerts (e.g., "Arbitrage Opportunity!") directly to your Telegram or Discord.
 
-### 🍰 Dish No. 5: The "Auth Layer" & PredSX Companion
+### 🍰 Dish No. 5: The "Auth Layer" & PMAxis Companion
 **Goal:** Secure the platform and take it mobile.
 *   **Ingredients:** JWT (JSON Web Tokens), React Native, Biometrics API.
 *   **The Process:**
     1.  **Auth Layer:** Implement a Go middleware in the `api` service to verify JWT tokens on every request. Add a `/login` endpoint.
-    2.  **PredSX Companion (Mobile):** 
+    2.  **PMAxis Companion (Mobile):** 
         *   **The Tech:** Use React Native to share 50% of the web code (API logic/Stores).
         *   **The Goal:** A native app with **Biometric Login** (FaceID/Fingerprint) and **Push Notifications** for real-time trade alerts.
 
