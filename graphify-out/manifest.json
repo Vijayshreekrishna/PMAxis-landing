@@ -1,0 +1,422 @@
+{
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\.claude\\settings.local.json": {
+    "mtime": 1780908142.2333815,
+    "ast_hash": "7903e60cdab10848a4b9b41f4dff36a3",
+    "semantic_hash": "7903e60cdab10848a4b9b41f4dff36a3"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\cmd\\pmaxis\\client\\client.go": {
+    "mtime": 1781816397.608477,
+    "ast_hash": "8b179b49dab1587ee755b656c0428260",
+    "semantic_hash": "8b179b49dab1587ee755b656c0428260"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\cmd\\pmaxis\\cmd\\root.go": {
+    "mtime": 1781816397.6144738,
+    "ast_hash": "99df329df27c5e13c116015319a9968e",
+    "semantic_hash": "99df329df27c5e13c116015319a9968e"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\cmd\\pmaxis\\go.mod": {
+    "mtime": 1781817994.9599957,
+    "ast_hash": "4e1469e77e0f1d3e44ac13cc507dc009",
+    "semantic_hash": "4e1469e77e0f1d3e44ac13cc507dc009"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\cmd\\pmaxis\\main.go": {
+    "mtime": 1781816397.5864773,
+    "ast_hash": "06999214c70be1f674035861d5dcd5f2",
+    "semantic_hash": "06999214c70be1f674035861d5dcd5f2"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\deployments\\clickhouse\\init.sql": {
+    "mtime": 1777909204.49386,
+    "ast_hash": "e9379ae5a63800fa48ff32522fdf50ef",
+    "semantic_hash": "e9379ae5a63800fa48ff32522fdf50ef"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\clickhouse-client\\clickhouse.go": {
+    "mtime": 1781816397.6214833,
+    "ast_hash": "c71957c2e137a513b1527ba2b675a604",
+    "semantic_hash": "c71957c2e137a513b1527ba2b675a604"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\clickhouse-client\\examples\\main.go": {
+    "mtime": 1781816397.6284828,
+    "ast_hash": "55ed8512c872bf953139fad8f2be730a",
+    "semantic_hash": "55ed8512c872bf953139fad8f2be730a"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\clickhouse-client\\go.mod": {
+    "mtime": 1781817995.0707407,
+    "ast_hash": "a0d24e2098fe145a062218f58a4cbb0a",
+    "semantic_hash": "a0d24e2098fe145a062218f58a4cbb0a"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\config\\config.go": {
+    "mtime": 1772906771.4648736,
+    "ast_hash": "fb3ef3e67dfc1f621257de2603136255",
+    "semantic_hash": "fb3ef3e67dfc1f621257de2603136255"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\config\\config_test.go": {
+    "mtime": 1772906773.617174,
+    "ast_hash": "790601b6b38933065aee970bf37a15c1",
+    "semantic_hash": "790601b6b38933065aee970bf37a15c1"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\config\\go.mod": {
+    "mtime": 1781817995.0737424,
+    "ast_hash": "5f7656c881ec58e3ad598305c336adc9",
+    "semantic_hash": "5f7656c881ec58e3ad598305c336adc9"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\crypto\\go.mod": {
+    "mtime": 1781817995.077753,
+    "ast_hash": "0b2c805f7dc5865b7f1c5cb5c3bb07c1",
+    "semantic_hash": "0b2c805f7dc5865b7f1c5cb5c3bb07c1"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\crypto\\identity.go": {
+    "mtime": 1773252607.1334271,
+    "ast_hash": "6086b187c0e115e75f7e056f6c9d9db7",
+    "semantic_hash": "6086b187c0e115e75f7e056f6c9d9db7"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\kafka-client\\admin.go": {
+    "mtime": 1781816397.6424804,
+    "ast_hash": "15525ad61da6d8f5e0161ba684bf3e2e",
+    "semantic_hash": "15525ad61da6d8f5e0161ba684bf3e2e"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\kafka-client\\examples\\main.go": {
+    "mtime": 1781816397.658488,
+    "ast_hash": "3d72920bf0d21c9afeb53184865ca554",
+    "semantic_hash": "3d72920bf0d21c9afeb53184865ca554"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\kafka-client\\go.mod": {
+    "mtime": 1781817995.081755,
+    "ast_hash": "ba36ec7a9301158fd3f6062eff052b2e",
+    "semantic_hash": "ba36ec7a9301158fd3f6062eff052b2e"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\kafka-client\\kafka.go": {
+    "mtime": 1781816397.6494808,
+    "ast_hash": "b5ca5b80805653cfdd6c6cc03bd1567d",
+    "semantic_hash": "b5ca5b80805653cfdd6c6cc03bd1567d"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\logger\\go.mod": {
+    "mtime": 1781817995.0867467,
+    "ast_hash": "287d3c648bc17932f9ed30abdea69889",
+    "semantic_hash": "287d3c648bc17932f9ed30abdea69889"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\logger\\logger.go": {
+    "mtime": 1772949396.7055056,
+    "ast_hash": "0c1784b4e82786f4799bd450c68da318",
+    "semantic_hash": "0c1784b4e82786f4799bd450c68da318"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\logger\\logger_test.go": {
+    "mtime": 1774349089.2952044,
+    "ast_hash": "3a2763e4e674354e697e168e3cba0079",
+    "semantic_hash": "3a2763e4e674354e697e168e3cba0079"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\postgres-client\\examples\\main.go": {
+    "mtime": 1781816397.680483,
+    "ast_hash": "5ddb94f947a714209586f3751ed21934",
+    "semantic_hash": "5ddb94f947a714209586f3751ed21934"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\postgres-client\\go.mod": {
+    "mtime": 1781817995.0917463,
+    "ast_hash": "a60461ac102a36c32a86a48a4ca21901",
+    "semantic_hash": "a60461ac102a36c32a86a48a4ca21901"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\postgres-client\\postgres.go": {
+    "mtime": 1781816397.6704893,
+    "ast_hash": "34469929af547d3daa3821de3f6a4d3d",
+    "semantic_hash": "34469929af547d3daa3821de3f6a4d3d"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\redis-client\\examples\\main.go": {
+    "mtime": 1781816397.699476,
+    "ast_hash": "3fd7878dbc3bb09740d33cefa826b4ae",
+    "semantic_hash": "3fd7878dbc3bb09740d33cefa826b4ae"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\redis-client\\go.mod": {
+    "mtime": 1781817995.098745,
+    "ast_hash": "e49b92c677d9be9250c753a09a7dbcd2",
+    "semantic_hash": "e49b92c677d9be9250c753a09a7dbcd2"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\redis-client\\redis.go": {
+    "mtime": 1781816397.6894865,
+    "ast_hash": "866224cf806743b7021807ea670c9b1a",
+    "semantic_hash": "866224cf806743b7021807ea670c9b1a"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\retry-utils\\go.mod": {
+    "mtime": 1781817995.1047523,
+    "ast_hash": "fdaa3103d67e3cbde3f2f69706647def",
+    "semantic_hash": "fdaa3103d67e3cbde3f2f69706647def"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\retry-utils\\retry.go": {
+    "mtime": 1772906754.4650633,
+    "ast_hash": "d0b8bfa76367f36c5d0b66a174bd933a",
+    "semantic_hash": "d0b8bfa76367f36c5d0b66a174bd933a"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\retry-utils\\retry_test.go": {
+    "mtime": 1772906756.5131066,
+    "ast_hash": "511f6a86557ed7ae04390a3a7198a384",
+    "semantic_hash": "511f6a86557ed7ae04390a3a7198a384"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\schemas\\events.go": {
+    "mtime": 1781732922.206598,
+    "ast_hash": "aa9ade2bb409bb315da41be0ab0c9900",
+    "semantic_hash": "aa9ade2bb409bb315da41be0ab0c9900"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\schemas\\events_test.go": {
+    "mtime": 1774349080.4644845,
+    "ast_hash": "c7b310e4f19f04f904e2d4eb141c8fa4",
+    "semantic_hash": "c7b310e4f19f04f904e2d4eb141c8fa4"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\schemas\\go.mod": {
+    "mtime": 1781817995.1097474,
+    "ast_hash": "4a27b466898542f3842a8f65a54b05da",
+    "semantic_hash": "4a27b466898542f3842a8f65a54b05da"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\schemas\\schemas.go": {
+    "mtime": 1772954326.323485,
+    "ast_hash": "60317a9f74e52ed89f510dbf86d85d29",
+    "semantic_hash": "60317a9f74e52ed89f510dbf86d85d29"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\service\\go.mod": {
+    "mtime": 1781817995.1137486,
+    "ast_hash": "7cc671bd04ac7256ef458b855f15a820",
+    "semantic_hash": "7cc671bd04ac7256ef458b855f15a820"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\service\\service.go": {
+    "mtime": 1781816397.7304752,
+    "ast_hash": "1cd386e7b792cf8a69c7ba60de4c2dfa",
+    "semantic_hash": "1cd386e7b792cf8a69c7ba60de4c2dfa"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\websocket-client\\examples\\main.go": {
+    "mtime": 1781816397.749477,
+    "ast_hash": "25a1e71ef091d81b68baa3ccb0cff126",
+    "semantic_hash": "25a1e71ef091d81b68baa3ccb0cff126"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\websocket-client\\go.mod": {
+    "mtime": 1781817995.117741,
+    "ast_hash": "7618969e0d75b6271795d487bdf841f6",
+    "semantic_hash": "7618969e0d75b6271795d487bdf841f6"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\libs\\websocket-client\\websocket.go": {
+    "mtime": 1781816397.7424724,
+    "ast_hash": "c2f55c587ddce69373450f782a57bc26",
+    "semantic_hash": "c2f55c587ddce69373450f782a57bc26"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\api\\go.mod": {
+    "mtime": 1781817995.122753,
+    "ast_hash": "a1d9d7891373d9fc21708ec012d655ae",
+    "semantic_hash": "a1d9d7891373d9fc21708ec012d655ae"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\api\\handlers\\rest.go": {
+    "mtime": 1781816397.769474,
+    "ast_hash": "9acfa02588c871d3dc177bfacf951d7b",
+    "semantic_hash": "9acfa02588c871d3dc177bfacf951d7b"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\api\\main.go": {
+    "mtime": 1781816397.758476,
+    "ast_hash": "46271ad0a72444ae02b8371bcc8c9c12",
+    "semantic_hash": "46271ad0a72444ae02b8371bcc8c9c12"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\api\\middleware\\auth.go": {
+    "mtime": 1781816397.77848,
+    "ast_hash": "1496600ea987c03b04016e23cf5ba531",
+    "semantic_hash": "1496600ea987c03b04016e23cf5ba531"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\api\\middleware\\cors.go": {
+    "mtime": 1781284663.469442,
+    "ast_hash": "af0e70e3ecb9fc5154283ec136ff968d",
+    "semantic_hash": "af0e70e3ecb9fc5154283ec136ff968d"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\api\\middleware\\ratelimit.go": {
+    "mtime": 1781816397.7884793,
+    "ast_hash": "8300137557fd19da7fa49762fd15436e",
+    "semantic_hash": "8300137557fd19da7fa49762fd15436e"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\api\\middleware\\securityheaders.go": {
+    "mtime": 1781284654.6494544,
+    "ast_hash": "5f63b76037f750c0d134485a00edb762",
+    "semantic_hash": "5f63b76037f750c0d134485a00edb762"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\api\\openapi.json": {
+    "mtime": 1781816398.3016338,
+    "ast_hash": "efcf774c6bdb2cf0900a35030bb26d4e",
+    "semantic_hash": "efcf774c6bdb2cf0900a35030bb26d4e"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\api\\ws\\broadcaster.go": {
+    "mtime": 1781816397.7994838,
+    "ast_hash": "de2ce069bb32b2344e0012114fdc29bb",
+    "semantic_hash": "de2ce069bb32b2344e0012114fdc29bb"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\api\\ws\\client.go": {
+    "mtime": 1781816397.8074875,
+    "ast_hash": "5ed7ebc627eb6e0508bc04760b113399",
+    "semantic_hash": "5ed7ebc627eb6e0508bc04760b113399"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\api\\ws\\handler.go": {
+    "mtime": 1781816397.8194778,
+    "ast_hash": "3e9812d8355629e832ce503a6119a6b7",
+    "semantic_hash": "3e9812d8355629e832ce503a6119a6b7"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\api\\ws\\hub.go": {
+    "mtime": 1781816397.8304753,
+    "ast_hash": "a425a14d693bcc0e0d58bf2265e7f525",
+    "semantic_hash": "a425a14d693bcc0e0d58bf2265e7f525"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\discovery\\go.mod": {
+    "mtime": 1781817995.128749,
+    "ast_hash": "accece445153b4cf89a04619f6fe7b13",
+    "semantic_hash": "accece445153b4cf89a04619f6fe7b13"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\discovery\\main.go": {
+    "mtime": 1781816397.8414805,
+    "ast_hash": "42626c7bfeb34ae92552f0f36ed5d13b",
+    "semantic_hash": "42626c7bfeb34ae92552f0f36ed5d13b"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\ingestion\\go.mod": {
+    "mtime": 1781817995.1327477,
+    "ast_hash": "60d2b7aa658d9c0f7ed1309ee2fd7a9a",
+    "semantic_hash": "60d2b7aa658d9c0f7ed1309ee2fd7a9a"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\ingestion\\main.go": {
+    "mtime": 1781816397.855482,
+    "ast_hash": "452be76e4229e8d890680bd0d5e557bb",
+    "semantic_hash": "452be76e4229e8d890680bd0d5e557bb"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\processor\\go.mod": {
+    "mtime": 1781817995.1377532,
+    "ast_hash": "8e5e52291ffb89b08be65fba702c0046",
+    "semantic_hash": "8e5e52291ffb89b08be65fba702c0046"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\processor\\main.go": {
+    "mtime": 1781816397.8654974,
+    "ast_hash": "3fbb898dd6e68e609e9911b3e543d070",
+    "semantic_hash": "3fbb898dd6e68e609e9911b3e543d070"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\storage\\go.mod": {
+    "mtime": 1781817995.141773,
+    "ast_hash": "214bddfb88c039b8f0f221f2942359c5",
+    "semantic_hash": "214bddfb88c039b8f0f221f2942359c5"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\services\\storage\\main.go": {
+    "mtime": 1781816397.8850434,
+    "ast_hash": "518b69b66b7a2f46e6c61bd6a519e5c0",
+    "semantic_hash": "518b69b66b7a2f46e6c61bd6a519e5c0"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\README.md": {
+    "mtime": 1781816398.08615,
+    "ast_hash": "2a18fbc5b127cfa1716e37e339a1502d",
+    "semantic_hash": "2a18fbc5b127cfa1716e37e339a1502d"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\README.md": {
+    "mtime": 1781816398.108628,
+    "ast_hash": "14dded22ecb3c1add190dd5fddf0eb04",
+    "semantic_hash": "14dded22ecb3c1add190dd5fddf0eb04"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\deployments\\docker-compose.caddy.yml": {
+    "mtime": 1781166990.492599,
+    "ast_hash": "c788b5e6b67cdb1ffd38447351c7f196",
+    "semantic_hash": "c788b5e6b67cdb1ffd38447351c7f196"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\deployments\\docker-compose.vps.yml": {
+    "mtime": 1782017261.2851758,
+    "ast_hash": "2b62115f2701956fbc1a905024f1fef9",
+    "semantic_hash": "2b62115f2701956fbc1a905024f1fef9"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\deployments\\docker-compose.yml": {
+    "mtime": 1781816398.046089,
+    "ast_hash": "98d62d2d5d8b4e54119fb655e99c56c1",
+    "semantic_hash": "98d62d2d5d8b4e54119fb655e99c56c1"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\deployments\\k8s\\pmaxis.yaml": {
+    "mtime": 1781816398.074087,
+    "ast_hash": "f9f2aabca063ed899a77e0f1ca87e00f",
+    "semantic_hash": "f9f2aabca063ed899a77e0f1ca87e00f"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\deployments\\package\\docker-compose.yml": {
+    "mtime": 1782018129.3161292,
+    "ast_hash": "2b62115f2701956fbc1a905024f1fef9",
+    "semantic_hash": "2b62115f2701956fbc1a905024f1fef9"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\docs\\README.md": {
+    "mtime": 1781816398.1296296,
+    "ast_hash": "bffe43e5328de14e4a53b44226ee1ff1",
+    "semantic_hash": "bffe43e5328de14e4a53b44226ee1ff1"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\docs\\api\\api-growth-plan.md": {
+    "mtime": 1781825030.5226078,
+    "ast_hash": "3c0c95c7e28ba773c909b1941ecd23c2",
+    "semantic_hash": "3c0c95c7e28ba773c909b1941ecd23c2"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\docs\\api\\api-improvements.md": {
+    "mtime": 1781816398.1376421,
+    "ast_hash": "74358c3cdead00aedbe3de886ca30f21",
+    "semantic_hash": "74358c3cdead00aedbe3de886ca30f21"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\docs\\api\\api-reference.md": {
+    "mtime": 1781816398.145639,
+    "ast_hash": "1b484ed2cffc64104dc7f718f97cdcbd",
+    "semantic_hash": "1b484ed2cffc64104dc7f718f97cdcbd"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\docs\\data\\clickhouse-queries.md": {
+    "mtime": 1781816398.1536305,
+    "ast_hash": "0607cf3c7a5d7cecd0c8a7ccd4dbdf28",
+    "semantic_hash": "0607cf3c7a5d7cecd0c8a7ccd4dbdf28"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\docs\\data\\data-retention-projections.md": {
+    "mtime": 1781824133.8661356,
+    "ast_hash": "60a814ccf674e7349bf9820bc82b2331",
+    "semantic_hash": "60a814ccf674e7349bf9820bc82b2331"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\docs\\deployment\\cli.md": {
+    "mtime": 1781816398.1636298,
+    "ast_hash": "768b17e1ac2ae9566cef100bc3bae1b5",
+    "semantic_hash": "768b17e1ac2ae9566cef100bc3bae1b5"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\docs\\deployment\\env-vars.md": {
+    "mtime": 1781816398.194635,
+    "ast_hash": "0dce08d1f40aa99afbae046497d5fd53",
+    "semantic_hash": "0dce08d1f40aa99afbae046497d5fd53"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\docs\\deployment\\rollback.md": {
+    "mtime": 1781816398.2016346,
+    "ast_hash": "8f5d984d86f591d3112c221e6ce1122b",
+    "semantic_hash": "8f5d984d86f591d3112c221e6ce1122b"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\docs\\deployment\\vps-deploy.md": {
+    "mtime": 1781816398.2146287,
+    "ast_hash": "914f46810636943583d7daf425662eee",
+    "semantic_hash": "914f46810636943583d7daf425662eee"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\docs\\info.md": {
+    "mtime": 1781816398.118629,
+    "ast_hash": "96a5e8b28a2f730b06f10a1b364def2d",
+    "semantic_hash": "96a5e8b28a2f730b06f10a1b364def2d"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\docs\\infrastructure\\port-security.md": {
+    "mtime": 1781816398.2346318,
+    "ast_hash": "ec4cc57f37bcab2ba0ecd9ec0960a468",
+    "semantic_hash": "ec4cc57f37bcab2ba0ecd9ec0960a468"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\docs\\infrastructure\\rpc-failover-design.md": {
+    "mtime": 1781816398.2536347,
+    "ast_hash": "8e0a82cbc61eb93e8c6ab29856911ab9",
+    "semantic_hash": "8e0a82cbc61eb93e8c6ab29856911ab9"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\docs\\infrastructure\\storage-projections.md": {
+    "mtime": 1781816398.2626355,
+    "ast_hash": "0aed79dcbdee9e0ed3461563a3aa8992",
+    "semantic_hash": "0aed79dcbdee9e0ed3461563a3aa8992"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\docs\\operations\\monitoring.md": {
+    "mtime": 1781816398.2696297,
+    "ast_hash": "b5dc760dc3120ebf7a4993a17a84d677",
+    "semantic_hash": "b5dc760dc3120ebf7a4993a17a84d677"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\docs\\operations\\troubleshooting.md": {
+    "mtime": 1781816398.2806444,
+    "ast_hash": "bcc8517f3c68331d6444046111497164",
+    "semantic_hash": "bcc8517f3c68331d6444046111497164"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\pmaxis\\docs\\operations\\uptime-kuma.md": {
+    "mtime": 1781816398.2896316,
+    "ast_hash": "adc6cc1dea9db0ad4775bf391dfb0b78",
+    "semantic_hash": "adc6cc1dea9db0ad4775bf391dfb0b78"
+  },
+  "C:\\Users\\vijay\\OneDrive\\Desktop\\PMAxis\\recipe.md": {
+    "mtime": 1781816398.0976336,
+    "ast_hash": "536a276b294010b62f41a8b93be53dc7",
+    "semantic_hash": "536a276b294010b62f41a8b93be53dc7"
+  }
+}

@@ -103,6 +103,7 @@
     restart: always
     volumes:
       - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse-logging.xml:/etc/clickhouse-server/config.d/logging.xml:ro
     environment:
       - CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
       - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-}

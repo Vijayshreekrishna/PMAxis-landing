@@ -1,0 +1,1 @@
+{"nodes": [{"id": "pkg_github_com_pmaxis_pmaxis_libs_crypto", "label": "github.com/pmaxis/pmaxis/libs/crypto", "file_type": "code", "type": "package", "ecosystem": "go", "source_file": "pmaxis/libs/crypto/go.mod", "source_location": "L1"}], "edges": []}

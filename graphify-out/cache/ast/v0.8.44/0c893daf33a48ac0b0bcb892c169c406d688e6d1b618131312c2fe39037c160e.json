@@ -1,0 +1,1 @@
+{"nodes": [{"id": "pkg_github_com_pmaxis_pmaxis_libs_config", "label": "github.com/pmaxis/pmaxis/libs/config", "file_type": "code", "type": "package", "ecosystem": "go", "source_file": "pmaxis/libs/config/go.mod", "source_location": "L1"}], "edges": []}
