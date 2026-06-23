@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PMAxis — Get API Access</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0f14;
+      --surface: #151820;
+      --surface2: #1c2030;
+      --border: #252a38;
+      --accent: #4f8ef7;
+      --accent2: #7c6af7;
+      --green: #22c55e;
+      --red: #ef4444;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --radius: 12px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .brand {
+      font-size: 22px;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 4px;
+      text-align: center;
+    }
+
+    .tagline {
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 36px;
+      width: 100%;
+      max-width: 440px;
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .card-sub {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+
+    .field { margin-bottom: 18px; }
+    .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .field input, .field textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.15s;
+    }
+    .field input:focus, .field textarea:focus { outline: none; border-color: var(--accent); }
+    .field textarea { resize: vertical; min-height: 80px; font-family: inherit; }
+
+    .tier-info {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 20px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .tier-info strong { color: var(--accent); }
+
+    .btn {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+      border: none;
+      border-radius: 9px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Success state */
+    .success-wrap { display: none; }
+    .success-icon { font-size: 36px; text-align: center; margin-bottom: 12px; }
+    .success-title { font-size: 18px; font-weight: 700; text-align: center; margin-bottom: 6px; }
+    .success-sub { color: var(--muted); font-size: 13px; text-align: center; margin-bottom: 24px; }
+
+    .key-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .key-text {
+      font-family: 'SF Mono', 'Consolas', monospace;
+      font-size: 13px;
+      word-break: break-all;
+      color: var(--accent);
+    }
+    .copy-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      flex-shrink: 0;
+      font-weight: 600;
+    }
+    .copy-btn:hover { opacity: 0.85; }
+    .copy-btn.copied { background: var(--green); }
+
+    .warning {
+      background: rgba(245,158,11,0.1);
+      border: 1px solid rgba(245,158,11,0.3);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 12px;
+      color: #f59e0b;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    .limits-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .limit-chip {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .limit-chip .lc-val { font-size: 15px; font-weight: 700; color: var(--accent); }
+    .limit-chip .lc-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    .docs-link {
+      display: block;
+      text-align: center;
+      color: var(--accent);
+      font-size: 13px;
+      text-decoration: none;
+      margin-top: 12px;
+    }
+    .docs-link:hover { text-decoration: underline; }
+
+    .error-msg {
+      color: var(--red);
+      font-size: 13px;
+      margin-top: 10px;
+      text-align: center;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="brand">PMAxis</div>
+  <div class="tagline">Prediction Market Data API</div>
+
+  <div class="card">
+    <!-- Registration Form -->
+    <div id="formWrap">
+      <div class="card-title">Get API Access</div>
+      <div class="card-sub">Fill in your details to receive a free API key instantly.</div>
+
+      <div class="tier-info">
+        <strong>Free tier</strong> includes 60 req/min, 7-day price history, 1 WebSocket connection, and full access to market data. No credit card required.
+      </div>
+
+      <div class="field">
+        <label>App / Project Name</label>
+        <input id="appName" type="text" placeholder="My Trading Bot" />
+      </div>
+      <div class="field">
+        <label>Email Address</label>
+        <input id="email" type="email" placeholder="you@example.com" />
+      </div>
+      <div class="field">
+        <label>What are you building? <span style="color:var(--border)">(optional)</span></label>
+        <textarea id="useCase" placeholder="e.g. A dashboard for tracking prediction market prices..."></textarea>
+      </div>
+
+      <button class="btn" id="submitBtn" onclick="register()">Get My API Key</button>
+      <div class="error-msg" id="errorMsg"></div>
+    </div>
+
+    <!-- Success State -->
+    <div class="success-wrap" id="successWrap">
+      <div class="success-icon">✓</div>
+      <div class="success-title">Your API Key</div>
+      <div class="success-sub">Copy and save it now — this is the only time it will be shown.</div>
+
+      <div class="key-box">
+        <span class="key-text" id="keyDisplay"></span>
+        <button class="copy-btn" id="copyBtn" onclick="copyKey()">Copy</button>
+      </div>
+
+      <div class="warning">
+        ⚠ Save this key somewhere safe. It cannot be recovered. If you lose it, you'll need to request a new one.
+      </div>
+
+      <div class="limits-row">
+        <div class="limit-chip">
+          <div class="lc-val">60</div>
+          <div class="lc-label">req / min</div>
+        </div>
+        <div class="limit-chip">
+          <div class="lc-val">7d</div>
+          <div class="lc-label">price history</div>
+        </div>
+        <div class="limit-chip">
+          <div class="lc-val">1</div>
+          <div class="lc-label">WebSocket</div>
+        </div>
+      </div>
+
+      <div style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:4px">Use this header in every API request:</div>
+      <div class="key-box" style="margin-bottom:16px">
+        <span class="key-text">X-API-Key: <span id="keyHint"></span></span>
+      </div>
+
+      <a class="docs-link" href="/docs">Read the API Docs →</a>
+    </div>
+  </div>
+
+<script>
+  let generatedKey = '';
+
+  async function register() {
+    const appName = document.getElementById('appName').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const useCase = document.getElementById('useCase').value.trim();
+    const errorEl = document.getElementById('errorMsg');
+    const btn = document.getElementById('submitBtn');
+
+    errorEl.style.display = 'none';
+
+    if (!appName) { showError('Please enter your app name.'); return; }
+    if (!email || !email.includes('@')) { showError('Please enter a valid email address.'); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Creating...';
+
+    try {
+      const res = await fetch('/v1/keys/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ app_name: appName, email, use_case: useCase }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showError(data.error || 'Something went wrong. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'Get My API Key';
+        return;
+      }
+
+      generatedKey = data.key;
+      document.getElementById('keyDisplay').textContent = generatedKey;
+      document.getElementById('keyHint').textContent = generatedKey.slice(0, 16) + '...';
+      document.getElementById('formWrap').style.display = 'none';
+      document.getElementById('successWrap').style.display = 'block';
+
+    } catch (e) {
+      showError('Network error. Please try again.');
+      btn.disabled = false;
+      btn.textContent = 'Get My API Key';
+    }
+  }
+
+  function copyKey() {
+    navigator.clipboard.writeText(generatedKey).then(() => {
+      const btn = document.getElementById('copyBtn');
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+    });
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && document.getElementById('formWrap').style.display !== 'none') {
+      register();
+    }
+  });
+</script>
+</body>
+</html>

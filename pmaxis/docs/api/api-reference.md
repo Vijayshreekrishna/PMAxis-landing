@@ -1,9 +1,98 @@
 ﻿# PMAxis API Reference
 
-Base URL: `http://localhost:8088`
+Base URL (VPS): `http://167.233.97.217:8088`  
+Base URL (local): `http://localhost:8088`
 
-All `/v1/*` routes are rate-limited at **60 requests/min per IP**.
-All `/debug/*` routes require the `X-Debug-Token` header (see [Auth](#authentication)).
+Interactive docs: `/docs` — Scalar UI backed by `/openapi.json`.
+
+---
+
+## Authentication
+
+All `/v1/*` routes require an API key:
+
+```
+X-API-Key: pmx_live_your_key_here
+```
+
+Get a free key at `/register`. Keys are stored in Postgres and cached in Redis.  
+Without a valid key you get `401 unauthorized`.
+
+| Tier | Requests / min |
+|------|---------------|
+| Free | 60 |
+| Pro | 600 |
+| Enterprise | 6000 |
+
+Rate limit headers on every response:
+```
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 47
+```
+
+When exceeded:
+```
+HTTP 429
+Retry-After: 60
+{"error":"rate limit exceeded","retry_after":"60s"}
+```
+
+WebSocket (`/stream`) also requires auth — pass the key as a query param:
+```
+ws://167.233.97.217:8088/stream?api_key=pmx_live_your_key_here
+```
+
+Debug endpoints (`/debug/*`, `/metrics`) use a separate token — see [Debug Token](#debug-token).
+
+---
+
+## Key Management
+
+### `POST /register`
+Self-service key registration (public, no auth required). Returns a free-tier key.
+
+**Body:**
+```json
+{ "app_name": "My App", "email": "dev@example.com", "use_case": "trading bot" }
+```
+
+```bash
+curl -X POST http://167.233.97.217:8088/register \
+  -H "Content-Type: application/json" \
+  -d '{"app_name":"My App","email":"dev@example.com"}'
+```
+
+**Response** (`201 Created`):
+```json
+{
+  "key":        "pmx_live_a1b2c3d4e5f6...",
+  "app_name":   "My App",
+  "tier":       "free",
+  "rate_limit": "60 req/min",
+  "message":    "Save your key now — it will not be shown again"
+}
+```
+
+The key is shown **once**. Store it securely — there is no retrieval endpoint.
+
+---
+
+### `POST /v1/keys/rotate`
+Rotate your own API key. Authenticates via your current `X-API-Key`.  
+The old key is **immediately invalidated**; the new key carries the same tier and metadata.
+
+```bash
+curl -X POST http://167.233.97.217:8088/v1/keys/rotate \
+  -H "X-API-Key: pmx_live_your_current_key"
+```
+
+**Response** (`200 OK`):
+```json
+{
+  "key":     "pmx_live_new_key_here...",
+  "message": "Old key is now invalid. Save your new key — it will not be shown again."
+}
+```
 
 ---
 
@@ -909,10 +998,18 @@ curl -H "X-Debug-Token: your-secret-token" http://localhost:8088/debug/markets
 ## WebSocket
 
 ### `GET /stream`
-Upgrade to WebSocket. Receive real-time events for all markets by default.
+Upgrade to WebSocket. Requires API key auth — pass as a query param (browsers cannot set custom headers on WebSocket connections):
+
+```
+ws://167.233.97.217:8088/stream?api_key=pmx_live_your_key_here
+```
+
+Returns `403` if the key is missing or invalid.
+
+Receive real-time events for all markets by default.
 
 ```javascript
-const ws = new WebSocket("ws://localhost:8088/stream");
+const ws = new WebSocket("ws://localhost:8088/stream?api_key=pmx_live_your_key_here");
 
 // Subscribe to specific markets
 ws.send(JSON.stringify({
@@ -993,8 +1090,9 @@ ws.send(JSON.stringify({ action: "unsubscribe", markets: [] }));
 
 ## Authentication
 
-### Rate Limiting
-All `/v1/*` routes are rate-limited at **60 requests/minute per IP**.
+### API Key Auth
+All `/v1/*` routes require `X-API-Key: pmx_live_...` (see [Key Management](#key-management) above).  
+Rate limits are **per key**, not per IP.
 
 Response headers on every request:
 ```
@@ -1008,15 +1106,6 @@ HTTP 429
 Retry-After: 60
 {"error":"rate limit exceeded","retry_after":"60s"}
 ```
-
-**Behind a reverse proxy?** Set `TRUSTED_PROXIES` to the proxy's IP/CIDR so the real client IP is read from `X-Forwarded-For`:
-
-```yaml
-# .env
-TRUSTED_PROXIES=10.0.0.1/24
-```
-
-When unset, `X-Forwarded-For` is ignored and `RemoteAddr` is always used directly.
 
 ### CORS
 Allowed origins are controlled by `ALLOWED_ORIGINS` (comma-separated). Defaults to `http://localhost:3000`.
@@ -1088,6 +1177,7 @@ curl -I "http://localhost:8088/v1/markets/top"
 
 | HTTP Status | Body | Cause |
 |------------|------|-------|
+| `401 Unauthorized` | `{"error":"unauthorized"}` | Missing or invalid `X-API-Key` header on any `/v1/*` route |
 | `400 Bad Request` | `"unsupported exchange"` | Exchange other than `polymarket` passed |
 | `400 Bad Request` | `"wallet is required"` | `/v1/positions` called without `wallet` param |
 | `404 Not Found` | `"market not found"` | Market ID not in Redis `pmaxis:markets` set |

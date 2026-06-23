@@ -275,6 +275,8 @@
         condition: service_healthy
       clickhouse:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     environment:
       - KAFKA_BROKERS=kafka:9092
       - REDIS_ADDR=redis:6379
@@ -282,6 +284,8 @@
       - CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
       - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-}
       - CLICKHOUSE_DB=${CLICKHOUSE_DB:-default}
+      - POSTGRES_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-pmaxis}?sslmode=disable
+      - DEBUG_TOKEN=${DEBUG_TOKEN}
     deploy:
       resources:
         limits:

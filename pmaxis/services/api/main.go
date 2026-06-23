@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 import (
 	"context"
@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/pmaxis/pmaxis/libs/clickhouse-client"
+	clickhouse "github.com/pmaxis/pmaxis/libs/clickhouse-client"
 	"github.com/pmaxis/pmaxis/libs/config"
+	postgres "github.com/pmaxis/pmaxis/libs/postgres-client"
 	redisclient "github.com/pmaxis/pmaxis/libs/redis-client"
 	"github.com/pmaxis/pmaxis/libs/service"
 	"github.com/pmaxis/pmaxis/services/api/handlers"
@@ -20,6 +21,12 @@ import (
 
 //go:embed openapi.json
 var openapiSpec []byte
+
+//go:embed admin.html
+var adminHTML []byte
+
+//go:embed register.html
+var registerHTML []byte
 
 func main() {
 	svc := service.NewBaseService("api")
@@ -33,6 +40,7 @@ func main() {
 		chUser := config.GetEnv("CLICKHOUSE_USER", "default")
 		chPassword := config.GetEnv("CLICKHOUSE_PASSWORD", "")
 		chDatabase := config.GetEnv("CLICKHOUSE_DB", "default")
+		pgURL := config.GetEnv("POSTGRES_URL", "postgres://postgres:postgres@localhost:5432/pmaxis")
 		gammaBaseURL := config.GetEnv("GAMMA_API_BASE_URL", "https://gamma-api.polymarket.com")
 		dataAPIURL := config.GetEnv("DATA_API_URL", "https://data-api.polymarket.com")
 		clobAPIURL := config.GetEnv("CLOB_API_URL", "https://clob.polymarket.com")
@@ -48,14 +56,25 @@ func main() {
 		if err != nil {
 			return fmt.Errorf("failed to connect to clickhouse: %w", err)
 		}
+		pg, err := postgres.NewClient(ctx, pgURL, 5, svc.Logger)
+		if err != nil {
+			return fmt.Errorf("failed to connect to postgres: %w", err)
+		}
+		defer pg.Close()
 
 		h := &handlers.APIHandler{
 			Redis:      rdb,
 			ClickHouse: ch,
+			Postgres:   pg,
 			Logger:     svc.Logger,
 			GammaURL:   gammaBaseURL,
 			DataURL:    dataAPIURL,
 			ClobURL:    clobAPIURL,
+		}
+
+		// Auto-migrate api_keys table
+		if err := h.MigrateAPIKeys(ctx); err != nil {
+			return fmt.Errorf("failed to migrate api_keys table: %w", err)
 		}
 
 		// Router
@@ -66,27 +85,26 @@ func main() {
 		// Public Routes
 		r.HandleFunc("/health", h.GetHealth).Methods("GET")
 
-		// Metrics — gated behind DEBUG_TOKEN same as /debug/* routes
+		// Metrics — gated behind DEBUG_TOKEN
 		r.Handle("/metrics", middleware.DebugAuth(promhttp.Handler()))
 
 		// WebSocket Gateway
 		hub := ws.NewHub(svc.Logger)
 		go hub.Run(ctx)
-		r.HandleFunc("/stream", func(w http.ResponseWriter, r *http.Request) {
+		r.Handle("/stream", middleware.AuthWS(rdb, svc.Logger)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ws.ServeWS(hub, w, r, svc.Logger)
-		})
+		})))
 
 		// Real-time Kafka → WebSocket broadcaster
 		go ws.StartKafkaBroadcaster(ctx, hub, kafkaBrokers, svc.Logger)
 
-		// API Docs — Swagger UI at /docs, spec at /openapi.json
+		// API Docs
 		r.HandleFunc("/openapi.json", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 			w.Write(openapiSpec)
 		}).Methods("GET")
 		r.HandleFunc("/docs", func(w http.ResponseWriter, r *http.Request) {
-			// Override the global CSP — this page intentionally loads external scripts.
 			w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; style-src https://cdn.jsdelivr.net 'unsafe-inline'; img-src 'self' data: https:; connect-src *; font-src https://cdn.jsdelivr.net data:; worker-src blob:")
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.Write([]byte(`<!DOCTYPE html>
@@ -141,9 +159,7 @@ func main() {
       <option value="default">Default</option>
     </select>
   </div>
-
   <script id="api-reference" data-url="/openapi.json"></script>
-
   <script>
     var ROUNDED_CSS = [
       '.scalar-card { border-radius: 14px !important; }',
@@ -154,27 +170,23 @@ func main() {
       'code, pre { border-radius: 8px !important; }',
       '.tag-section { border-radius: 14px !important; }',
     ].join('\n');
-
     function buildConfig(theme) {
       return JSON.stringify({ theme: theme, layout: 'modern', customCss: ROUNDED_CSS });
     }
-
     function applyTheme(theme) {
       localStorage.setItem('pmaxis-docs-theme', theme);
       location.reload();
     }
-
     var saved = localStorage.getItem('pmaxis-docs-theme') || 'deepSpace';
     document.getElementById('theme-select').value = saved;
     document.getElementById('api-reference').setAttribute('data-configuration', buildConfig(saved));
   </script>
-
   <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
 </body>
 </html>`))
 		}).Methods("GET")
 
-		// Debug Endpoints — gated by X-Debug-Token header (set DEBUG_TOKEN env var)
+		// Debug Endpoints — gated by X-Debug-Token header
 		debug := r.PathPrefix("/debug").Subrouter()
 		debug.Use(middleware.DebugAuth)
 		debug.HandleFunc("/markets", h.GetDebugMarkets).Methods("GET")
@@ -184,11 +196,43 @@ func main() {
 		debug.HandleFunc("/signals", h.GetDebugSignals).Methods("GET")
 		debug.HandleFunc("/signals/{id}", h.GetDebugSignalsByMarket).Methods("GET")
 
-		// Protected API Routes — rate-limited at 60 req/min per IP
-		api := r.PathPrefix("/v1").Subrouter()
-		api.Use(middleware.RateLimit(rdb, svc.Logger))
-		// api.Use(middleware.Auth(svc.Logger))
+		// Admin Panel — gated by DEBUG_TOKEN (same as debug routes)
+		admin := r.PathPrefix("/admin").Subrouter()
+		admin.Use(middleware.DebugAuth)
+		admin.HandleFunc("", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'")
+			w.Write(adminHTML)
+		}).Methods("GET")
+		admin.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/admin", http.StatusMovedPermanently)
+		}).Methods("GET")
+		admin.HandleFunc("/keys", h.AdminListKeys).Methods("GET")
+		admin.HandleFunc("/keys", h.AdminCreateKey).Methods("POST")
+		admin.HandleFunc("/keys/stats", h.AdminGetStats).Methods("GET")
+		admin.HandleFunc("/keys/{key}", h.AdminGetKey).Methods("GET")
+		admin.HandleFunc("/keys/{key}", h.AdminUpdateKey).Methods("PUT")
+		admin.HandleFunc("/keys/{key}/revoke", h.AdminRevokeKey).Methods("POST")
+		admin.HandleFunc("/keys/{key}/activate", h.AdminActivateKey).Methods("POST")
+		admin.HandleFunc("/keys/{key}/reset", h.AdminResetUsage).Methods("POST")
+		admin.HandleFunc("/keys/{key}/usage", h.AdminGetUsage).Methods("GET")
 
+		// Developer Registration Page — public
+		r.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'")
+			w.Write(registerHTML)
+		}).Methods("GET")
+
+		// Public key registration endpoint (no API key required)
+		r.HandleFunc("/v1/keys/register", h.RegisterKey).Methods("POST")
+
+		// Protected API Routes — require valid API key + rate limited per tier
+		api := r.PathPrefix("/v1").Subrouter()
+		api.Use(middleware.Auth(rdb, svc.Logger))
+		api.Use(middleware.RateLimit(rdb, svc.Logger))
+
+		api.HandleFunc("/keys/rotate", h.RotateKey).Methods("POST")
 		api.HandleFunc("/markets", h.GetMarkets).Methods("GET")
 		api.HandleFunc("/markets/search", h.SearchMarkets).Methods("GET")
 		api.HandleFunc("/markets/top", h.GetTopMarkets).Methods("GET")
@@ -224,7 +268,7 @@ func main() {
 			w.Write([]byte(`{"data": {"message": "GraphQL API placeholder"}}`))
 		}).Methods("POST")
 
-		// Debugging router setup
+		// Log registered routes
 		r.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
 			path, _ := route.GetPathTemplate()
 			svc.Logger.Info("Registered route", "path", path)
@@ -232,11 +276,11 @@ func main() {
 		})
 
 		srv := &http.Server{
-			Handler:      r,
-			Addr:         ":" + port,
-			WriteTimeout: 15 * time.Second,
-			ReadTimeout:  15 * time.Second,
-			IdleTimeout:  60 * time.Second,
+			Handler:        r,
+			Addr:           ":" + port,
+			WriteTimeout:   15 * time.Second,
+			ReadTimeout:    15 * time.Second,
+			IdleTimeout:    60 * time.Second,
 			MaxHeaderBytes: 1 << 16, // 64 KB
 		}
 
@@ -248,7 +292,6 @@ func main() {
 			}
 		}()
 
-		// Graceful shutdown handled by BaseService
 		<-ctx.Done()
 
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

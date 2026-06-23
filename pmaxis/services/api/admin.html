@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PMAxis — Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0f14;
+      --surface: #151820;
+      --surface2: #1c2030;
+      --border: #252a38;
+      --accent: #4f8ef7;
+      --accent2: #7c6af7;
+      --green: #22c55e;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --radius: 10px;
+    }
+
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; min-height: 100vh; }
+
+    /* Nav */
+    .nav { display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 56px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+    .nav-brand { font-size: 16px; font-weight: 700; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .nav-sub { font-size: 12px; color: var(--muted); margin-left: 8px; }
+    .nav-left { display: flex; align-items: baseline; gap: 4px; }
+
+    /* Layout */
+    .page { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+    /* Stats */
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+    .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px; }
+    .stat-value { font-size: 28px; font-weight: 700; }
+    .stat-value.green { color: var(--green); }
+    .stat-value.blue { color: var(--accent); }
+    .stat-value.purple { color: var(--accent2); }
+
+    /* Table section */
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .section-title { font-size: 15px; font-weight: 600; }
+
+    /* Button */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; transition: opacity 0.15s; }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-danger { background: var(--red); color: #fff; }
+    .btn-success { background: var(--green); color: #fff; }
+    .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 6px; }
+
+    /* Table */
+    .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    th { padding: 12px 16px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); border-bottom: 1px solid var(--border); background: var(--surface2); }
+    td { padding: 13px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); cursor: pointer; }
+
+    /* Badges */
+    .badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge-green { background: rgba(34,197,94,0.15); color: var(--green); }
+    .badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+    .badge-blue { background: rgba(79,142,247,0.15); color: var(--accent); }
+    .badge-purple { background: rgba(124,106,247,0.15); color: var(--accent2); }
+    .badge-yellow { background: rgba(245,158,11,0.15); color: var(--yellow); }
+
+    /* Progress bar */
+    .progress-wrap { display: flex; align-items: center; gap: 8px; }
+    .progress-bar { flex: 1; height: 4px; background: var(--border); border-radius: 4px; overflow: hidden; min-width: 60px; }
+    .progress-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.3s; }
+    .progress-fill.warn { background: var(--yellow); }
+    .progress-fill.danger { background: var(--red); }
+    .progress-text { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+    /* Detail Panel */
+    .panel-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; }
+    .panel-overlay.open { display: block; }
+    .panel { position: fixed; top: 0; right: -480px; width: 480px; height: 100vh; background: var(--surface); border-left: 1px solid var(--border); z-index: 201; overflow-y: auto; transition: right 0.25s ease; padding: 24px; }
+    .panel.open { right: 0; }
+    .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .panel-title { font-size: 16px; font-weight: 600; }
+    .panel-close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 20px; line-height: 1; }
+    .panel-close:hover { color: var(--text); }
+
+    .field-group { margin-bottom: 20px; }
+    .field-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 6px; }
+    .field-value { font-size: 14px; }
+    .field-mono { font-family: 'SF Mono', 'Consolas', monospace; font-size: 13px; background: var(--surface2); padding: 8px 12px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between; gap: 8px; word-break: break-all; }
+    .copy-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; flex-shrink: 0; }
+    .copy-btn:hover { color: var(--accent); }
+
+    select.field-select { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 13px; }
+    input.field-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 13px; }
+
+    .panel-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+
+    .usage-block { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-top: 4px; }
+    .usage-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+    .usage-row strong { color: var(--text); }
+
+    /* Modal */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 300; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 28px; width: 420px; max-width: 95vw; }
+    .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; }
+    .modal-field { margin-bottom: 16px; }
+    .modal-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    .modal-input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 9px 12px; border-radius: 7px; font-size: 13px; }
+    .modal-input:focus { outline: none; border-color: var(--accent); }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+    /* Token gate */
+    .token-gate { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .token-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 36px; width: 360px; text-align: center; }
+    .token-card h2 { font-size: 18px; margin-bottom: 8px; }
+    .token-card p { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+    .token-input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 8px; font-size: 14px; margin-bottom: 12px; }
+    .token-input:focus { outline: none; border-color: var(--accent); }
+
+    .empty { text-align: center; padding: 48px 24px; color: var(--muted); font-size: 13px; }
+
+    .toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; font-size: 13px; z-index: 999; opacity: 0; transform: translateY(8px); transition: all 0.2s; pointer-events: none; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.ok { border-color: var(--green); color: var(--green); }
+    .toast.err { border-color: var(--red); color: var(--red); }
+  </style>
+</head>
+<body>
+
+<!-- Token Gate (shown if no token in localStorage) -->
+<div id="tokenGate" class="token-gate" style="display:none">
+  <div class="token-card">
+    <h2>PMAxis Admin</h2>
+    <p>Enter your admin token to continue</p>
+    <input id="tokenInput" class="token-input" type="password" placeholder="Admin token" />
+    <button class="btn btn-primary" style="width:100%" onclick="submitToken()">Continue</button>
+  </div>
+</div>
+
+<!-- Main App (hidden until authenticated) -->
+<div id="app" style="display:none">
+  <nav class="nav">
+    <div class="nav-left">
+      <span class="nav-brand">PMAxis</span>
+      <span class="nav-sub">Admin Panel</span>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="openCreateModal()">+ New Key</button>
+  </nav>
+
+  <div class="page">
+    <!-- Stats -->
+    <div class="stats" id="statsRow">
+      <div class="stat-card"><div class="stat-label">Total Keys</div><div class="stat-value blue" id="statTotal">—</div></div>
+      <div class="stat-card"><div class="stat-label">Active Keys</div><div class="stat-value green" id="statActive">—</div></div>
+      <div class="stat-card"><div class="stat-label">Free Tier</div><div class="stat-value" id="statFree">—</div></div>
+      <div class="stat-card"><div class="stat-label">Pro Tier</div><div class="stat-value purple" id="statPro">—</div></div>
+    </div>
+
+    <!-- Keys Table -->
+    <div class="section-header">
+      <span class="section-title">API Keys</span>
+      <button class="btn btn-ghost btn-sm" onclick="loadKeys()">↻ Refresh</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>App Name</th>
+            <th>Email</th>
+            <th>Tier</th>
+            <th>Created</th>
+            <th>Status</th>
+            <th>Usage</th>
+          </tr>
+        </thead>
+        <tbody id="keysBody">
+          <tr><td colspan="6" class="empty">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Panel -->
+<div class="panel-overlay" id="panelOverlay" onclick="closePanel()"></div>
+<div class="panel" id="detailPanel">
+  <div class="panel-header">
+    <span class="panel-title" id="panelTitle">Key Details</span>
+    <button class="panel-close" onclick="closePanel()">×</button>
+  </div>
+  <div id="panelBody"></div>
+</div>
+
+<!-- Create Key Modal -->
+<div class="modal-overlay" id="createModal">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Create API Key</div>
+    <div class="modal-field">
+      <div class="modal-label">App Name</div>
+      <input id="newAppName" class="modal-input" type="text" placeholder="My App" />
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Email</div>
+      <input id="newEmail" class="modal-input" type="email" placeholder="dev@example.com" />
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Tier</div>
+      <select id="newTier" class="modal-input">
+        <option value="free">Free — 60 req/min</option>
+        <option value="pro">Pro — 600 req/min</option>
+        <option value="enterprise">Enterprise — 6000 req/min</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Custom Rate Limit (0 = use tier default)</div>
+      <input id="newRateLimit" class="modal-input" type="number" value="0" min="0" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeCreateModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="createKey()">Create Key</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+  let TOKEN = '';
+  let currentKey = null;
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+
+  function init() {
+    // Check URL param first (first-time load with ?debug_token=)
+    const params = new URLSearchParams(location.search);
+    const urlToken = params.get('debug_token');
+    if (urlToken) {
+      localStorage.setItem('pmx_admin_token', urlToken);
+      // Remove token from URL without reload
+      params.delete('debug_token');
+      const clean = location.pathname + (params.toString() ? '?' + params : '');
+      history.replaceState(null, '', clean);
+    }
+
+    TOKEN = localStorage.getItem('pmx_admin_token') || '';
+    if (!TOKEN) {
+      document.getElementById('tokenGate').style.display = 'flex';
+    } else {
+      showApp();
+    }
+  }
+
+  function submitToken() {
+    const t = document.getElementById('tokenInput').value.trim();
+    if (!t) return;
+    TOKEN = t;
+    localStorage.setItem('pmx_admin_token', t);
+    document.getElementById('tokenGate').style.display = 'none';
+    showApp();
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && document.getElementById('tokenGate').style.display !== 'none') {
+      submitToken();
+    }
+  });
+
+  function showApp() {
+    document.getElementById('app').style.display = 'block';
+    loadStats();
+    loadKeys();
+  }
+
+  // ── API calls ─────────────────────────────────────────────────────────────
+
+  async function api(path, opts = {}) {
+    const res = await fetch('/admin' + path, {
+      ...opts,
+      headers: { 'X-Debug-Token': TOKEN, 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    });
+    if (res.status === 403) {
+      localStorage.removeItem('pmx_admin_token');
+      location.reload();
+    }
+    return res;
+  }
+
+  // ── Stats ─────────────────────────────────────────────────────────────────
+
+  async function loadStats() {
+    try {
+      const res = await api('/keys/stats');
+      const d = await res.json();
+      document.getElementById('statTotal').textContent = d.total_keys ?? '—';
+      document.getElementById('statActive').textContent = d.active_keys ?? '—';
+      document.getElementById('statFree').textContent = d.free_keys ?? '—';
+      document.getElementById('statPro').textContent = d.pro_keys ?? '—';
+    } catch {}
+  }
+
+  // ── Keys Table ────────────────────────────────────────────────────────────
+
+  async function loadKeys() {
+    const tbody = document.getElementById('keysBody');
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">Loading...</td></tr>';
+    try {
+      const res = await api('/keys');
+      const keys = await res.json();
+      if (!keys.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">No API keys yet. Create one to get started.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = keys.map(k => {
+        const tierBadge = k.tier === 'pro'
+          ? `<span class="badge badge-purple">Pro</span>`
+          : k.tier === 'enterprise'
+          ? `<span class="badge badge-yellow">Enterprise</span>`
+          : `<span class="badge badge-blue">Free</span>`;
+        const statusBadge = k.active
+          ? `<span class="badge badge-green">Active</span>`
+          : `<span class="badge badge-red">Revoked</span>`;
+        const created = new Date(k.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+        return `<tr onclick="openDetail('${k.key}')">
+          <td><strong>${esc(k.app_name)}</strong></td>
+          <td style="color:var(--muted)">${esc(k.email)}</td>
+          <td>${tierBadge}</td>
+          <td style="color:var(--muted)">${created}</td>
+          <td>${statusBadge}</td>
+          <td><span style="color:var(--muted);font-size:12px">click to view</span></td>
+        </tr>`;
+      }).join('');
+    } catch(e) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">Failed to load keys.</td></tr>';
+    }
+  }
+
+  // ── Detail Panel ──────────────────────────────────────────────────────────
+
+  async function openDetail(key) {
+    currentKey = key;
+    document.getElementById('panelOverlay').classList.add('open');
+    document.getElementById('detailPanel').classList.add('open');
+    document.getElementById('panelBody').innerHTML = '<div style="color:var(--muted);padding:20px 0">Loading...</div>';
+
+    const [keyRes, usageRes] = await Promise.all([
+      api('/keys/' + key),
+      api('/keys/' + key + '/usage'),
+    ]);
+    const k = await keyRes.json();
+    const usage = await usageRes.json();
+
+    document.getElementById('panelTitle').textContent = k.app_name;
+
+    const pct = Math.min(100, Math.round((usage.current / usage.limit) * 100));
+    const fillClass = pct >= 90 ? 'danger' : pct >= 70 ? 'warn' : '';
+
+    document.getElementById('panelBody').innerHTML = `
+      <div class="field-group">
+        <div class="field-label">API Key</div>
+        <div class="field-mono">
+          <span id="keyDisplay">${esc(k.key)}</span>
+          <button class="copy-btn" onclick="copyKey('${esc(k.key)}')" title="Copy">⎘</button>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <div class="field-label">Email</div>
+        <div class="field-value">${esc(k.email)}</div>
+      </div>
+
+      <div class="field-group">
+        <div class="field-label">Status</div>
+        <div>${k.active ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-red">Revoked</span>'}</div>
+      </div>
+
+      <div class="field-group">
+        <div class="field-label">Tier</div>
+        <select class="field-select" id="panelTier">
+          <option value="free" ${k.tier==='free'?'selected':''}>Free — 60 req/min</option>
+          <option value="pro" ${k.tier==='pro'?'selected':''}>Pro — 600 req/min</option>
+          <option value="enterprise" ${k.tier==='enterprise'?'selected':''}>Enterprise — 6000 req/min</option>
+        </select>
+      </div>
+
+      <div class="field-group">
+        <div class="field-label">Custom Rate Limit (0 = use tier default)</div>
+        <input class="field-input" id="panelRateLimit" type="number" value="${k.rate_limit}" min="0" />
+      </div>
+
+      <div class="field-group">
+        <div class="field-label">Usage This Minute</div>
+        <div class="usage-block">
+          <div class="usage-row">
+            <span>Requests</span><strong>${usage.current} / ${usage.limit}</strong>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-bar"><div class="progress-fill ${fillClass}" style="width:${pct}%"></div></div>
+            <span class="progress-text">${pct}%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <div class="field-label">Lifetime &amp; Daily Usage</div>
+        <div class="usage-block">
+          <div class="usage-row">
+            <span>Total requests (all time)</span><strong>${(usage.total_requests || 0).toLocaleString()}</strong>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:10px;margin-bottom:6px">Last 7 days</div>
+          <div style="display:flex;gap:6px;align-items:flex-end;height:52px">
+            ${buildDailyBars(usage.daily)}
+          </div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <div class="field-label">Created</div>
+        <div class="field-value" style="color:var(--muted)">${new Date(k.created_at).toLocaleString()}</div>
+      </div>
+
+      <div class="panel-actions">
+        <button class="btn btn-primary btn-sm" onclick="saveKeyChanges('${key}')">Save Changes</button>
+        <button class="btn btn-ghost btn-sm" onclick="resetUsage('${key}')">Reset Usage</button>
+        ${k.active
+          ? `<button class="btn btn-danger btn-sm" onclick="revokeKey('${key}')">Revoke Key</button>`
+          : `<button class="btn btn-success btn-sm" onclick="activateKey('${key}')">Activate Key</button>`
+        }
+      </div>
+    `;
+  }
+
+  function closePanel() {
+    document.getElementById('panelOverlay').classList.remove('open');
+    document.getElementById('detailPanel').classList.remove('open');
+    currentKey = null;
+  }
+
+  async function saveKeyChanges(key) {
+    const tier = document.getElementById('panelTier').value;
+    const rateLimit = parseInt(document.getElementById('panelRateLimit').value) || 0;
+    const res = await api('/keys/' + key, {
+      method: 'PUT',
+      body: JSON.stringify({ tier, rate_limit: rateLimit }),
+    });
+    if (res.ok) { toast('Changes saved', 'ok'); openDetail(key); loadStats(); loadKeys(); }
+    else toast('Failed to save', 'err');
+  }
+
+  async function revokeKey(key) {
+    if (!confirm('Revoke this key? It will stop working immediately.')) return;
+    const res = await api('/keys/' + key + '/revoke', { method: 'POST' });
+    if (res.ok) { toast('Key revoked', 'ok'); closePanel(); loadKeys(); loadStats(); }
+    else toast('Failed to revoke', 'err');
+  }
+
+  async function activateKey(key) {
+    const res = await api('/keys/' + key + '/activate', { method: 'POST' });
+    if (res.ok) { toast('Key activated', 'ok'); openDetail(key); loadKeys(); loadStats(); }
+    else toast('Failed to activate', 'err');
+  }
+
+  async function resetUsage(key) {
+    const res = await api('/keys/' + key + '/reset', { method: 'POST' });
+    if (res.ok) { toast('Usage reset', 'ok'); openDetail(key); }
+    else toast('Failed to reset', 'err');
+  }
+
+  function copyKey(key) {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(key).then(() => toast('Copied to clipboard', 'ok')).catch(() => fallbackCopy(key));
+    } else {
+      fallbackCopy(key);
+    }
+  }
+
+  function fallbackCopy(key) {
+    const el = document.createElement('textarea');
+    el.value = key;
+    el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+    document.body.appendChild(el);
+    el.select();
+    try {
+      document.execCommand('copy');
+      toast('Copied to clipboard', 'ok');
+    } catch {
+      toast('Copy failed — select the key manually', 'err');
+    }
+    document.body.removeChild(el);
+  }
+
+  // ── Create Modal ──────────────────────────────────────────────────────────
+
+  function openCreateModal() {
+    document.getElementById('createModal').classList.add('open');
+  }
+
+  function closeCreateModal() {
+    document.getElementById('createModal').classList.remove('open');
+  }
+
+  document.getElementById('createModal').addEventListener('click', function(e) {
+    if (e.target === this) closeCreateModal();
+  });
+
+  async function createKey() {
+    const app_name = document.getElementById('newAppName').value.trim();
+    const email = document.getElementById('newEmail').value.trim();
+    const tier = document.getElementById('newTier').value;
+    const rate_limit = parseInt(document.getElementById('newRateLimit').value) || 0;
+
+    if (!app_name || !email) { toast('App name and email are required', 'err'); return; }
+
+    const res = await api('/keys', {
+      method: 'POST',
+      body: JSON.stringify({ app_name, email, tier, rate_limit }),
+    });
+
+    if (res.ok) {
+      const k = await res.json();
+      closeCreateModal();
+      toast('Key created', 'ok');
+      loadKeys();
+      loadStats();
+      // Show the new key immediately in detail panel
+      setTimeout(() => openDetail(k.key), 300);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast(err.error || 'Failed to create key', 'err');
+    }
+  }
+
+  // ── Toast ─────────────────────────────────────────────────────────────────
+
+  let toastTimer;
+  function toast(msg, type = 'ok') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'toast show ' + type;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = 'toast'; }, 2800);
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Daily bar chart ───────────────────────────────────────────────────────
+
+  function buildDailyBars(daily) {
+    if (!daily) return '<span style="color:var(--muted);font-size:11px">No data yet</span>';
+    const dates = Object.keys(daily).sort();
+    const vals = dates.map(d => daily[d] || 0);
+    const max = Math.max(...vals, 1);
+    return dates.map(date => {
+      const val = daily[date] || 0;
+      const h = Math.max(2, Math.round((val / max) * 40));
+      const mm = date.slice(4, 6);
+      const dd = date.slice(6, 8);
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px" title="${date}: ${val} req">
+        <div style="font-size:10px;color:var(--muted)">${val}</div>
+        <div style="width:100%;background:var(--accent);border-radius:2px 2px 0 0;height:${h}px;opacity:0.85"></div>
+        <div style="font-size:9px;color:var(--muted)">${mm}/${dd}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────────────────
+  init();
+</script>
+</body>
+</html>

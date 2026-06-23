@@ -14,14 +14,15 @@ import (
 
 	"github.com/gorilla/mux"
 	clickhouse "github.com/pmaxis/pmaxis/libs/clickhouse-client"
+	"github.com/pmaxis/pmaxis/libs/logger"
+	postgres "github.com/pmaxis/pmaxis/libs/postgres-client"
 	redisclient "github.com/pmaxis/pmaxis/libs/redis-client"
 )
-
-import "github.com/pmaxis/pmaxis/libs/logger"
 
 type APIHandler struct {
 	Redis      redisclient.Interface
 	ClickHouse clickhouse.Interface
+	Postgres   postgres.Interface
 	Logger     logger.Interface
 	GammaURL   string
 	DataURL    string

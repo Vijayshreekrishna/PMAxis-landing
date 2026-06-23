@@ -1,4 +1,4 @@
-﻿package middleware
+package middleware
 
 import (
 	"fmt"
@@ -13,36 +13,69 @@ import (
 	redisclient "github.com/pmaxis/pmaxis/libs/redis-client"
 )
 
-const defaultRPM = 60
+var tierLimits = map[string]int{
+	"free":       60,
+	"pro":        600,
+	"enterprise": 6000,
+}
 
-// RateLimit is a Redis-backed sliding-window rate limiter (60 req/min per IP by default).
+// RateLimit is a Redis-backed rate limiter. When an API key is present in context
+// (set by Auth middleware), limits per key based on tier. Falls back to per-IP at 60/min.
 // On Redis failure it fails open so the service stays available.
 func RateLimit(rdb redisclient.Interface, log logger.Interface) func(http.Handler) http.Handler {
 	trustedProxies := parseTrustedProxies(os.Getenv("TRUSTED_PROXIES"))
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := extractClientIP(r, trustedProxies)
-			key := fmt.Sprintf("rl:%s", ip)
 			ctx := r.Context()
 
-			count, err := rdb.Incr(ctx, key).Result()
+			limit := 60
+			var rlKey string
+			var apiKey string
+
+			if k, ok := ctx.Value(ContextKeyAPIKey).(string); ok && k != "" {
+				apiKey = k
+				rlKey = fmt.Sprintf("rl:%s", apiKey)
+
+				if custom, ok := ctx.Value(ContextKeyRateLimit).(int); ok && custom > 0 {
+					limit = custom
+				} else if tier, ok := ctx.Value(ContextKeyTier).(string); ok {
+					if l, found := tierLimits[tier]; found {
+						limit = l
+					}
+				}
+			} else {
+				ip := extractClientIP(r, trustedProxies)
+				rlKey = fmt.Sprintf("rl:ip:%s", ip)
+			}
+
+			count, err := rdb.Incr(ctx, rlKey).Result()
 			if err != nil {
 				next.ServeHTTP(w, r)
 				return
 			}
 			if count == 1 {
-				rdb.Expire(ctx, key, time.Minute)
+				rdb.Expire(ctx, rlKey, time.Minute)
 			}
 
-			remaining := defaultRPM - int(count)
+			// Track persistent usage counters for authenticated keys
+			if apiKey != "" {
+				date := time.Now().UTC().Format("20060102")
+				dailyKey := "usage:daily:" + apiKey + ":" + date
+				rdb.Incr(ctx, "usage:total:"+apiKey)
+				if n, _ := rdb.Incr(ctx, dailyKey).Result(); n == 1 {
+					rdb.Expire(ctx, dailyKey, 30*24*time.Hour)
+				}
+			}
+
+			remaining := limit - int(count)
 			if remaining < 0 {
 				remaining = 0
 			}
-			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(defaultRPM))
+			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(limit))
 			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
 
-			if int(count) > defaultRPM {
+			if int(count) > limit {
 				w.Header().Set("Content-Type", "application/json")
 				w.Header().Set("Retry-After", "60")
 				http.Error(w, `{"error":"rate limit exceeded","retry_after":"60s"}`, http.StatusTooManyRequests)
@@ -53,8 +86,6 @@ func RateLimit(rdb redisclient.Interface, log logger.Interface) func(http.Handle
 	}
 }
 
-// parseTrustedProxies parses a comma-separated list of CIDRs/IPs from env.
-// If empty, X-Forwarded-For is never trusted.
 func parseTrustedProxies(raw string) []*net.IPNet {
 	if raw == "" {
 		return nil
@@ -76,8 +107,6 @@ func parseTrustedProxies(raw string) []*net.IPNet {
 	return nets
 }
 
-// extractClientIP returns the real client IP. X-Forwarded-For is only trusted
-// when the direct connection IP is in the TRUSTED_PROXIES list.
 func extractClientIP(r *http.Request, trustedProxies []*net.IPNet) string {
 	remoteIP, _, _ := net.SplitHostPort(r.RemoteAddr)
 	if remoteIP == "" {

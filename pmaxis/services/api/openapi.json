@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "PMAxis API",
-    "description": "Real-time prediction market data platform. Provides market data, prices, orderbooks, trades, signals, and analytics from Polymarket.\n\n**Rate limit:** 60 requests/minute per IP on all `/v1/*` routes.\n\n**Debug endpoints** require `X-Debug-Token` header (set `DEBUG_TOKEN` env var on the server).",
+    "description": "Real-time prediction market data platform. Provides market data, prices, orderbooks, trades, signals, and analytics from Polymarket.\n\n## Authentication\n\nAll `/v1/*` endpoints require an API key passed as the `X-API-Key` header:\n\n```\nX-API-Key: pmx_live_your_key_here\n```\n\nGet a free key at [/register](/register).\n\n## Rate Limits\n\n| Tier | Requests / min |\n|------|---------------|\n| Free | 60 |\n| Pro | 600 |\n| Enterprise | 6000 |\n\nRate limit headers are returned on every response: `X-RateLimit-Limit`, `X-RateLimit-Remaining`.\n\n**Debug endpoints** require `X-Debug-Token` header (set `DEBUG_TOKEN` env var on the server).",
     "version": "1.0.0"
   },
   "servers": [
@@ -16,6 +16,7 @@
     }
   ],
   "tags": [
+    { "name": "Keys", "description": "API key registration and rotation (self-service)" },
     { "name": "Health", "description": "Service health check" },
     { "name": "Markets", "description": "Market listing, search, and detail" },
     { "name": "Prices", "description": "Live prices and batch lookups" },
@@ -29,6 +30,77 @@
     { "name": "Debug", "description": "Raw internal state (requires X-Debug-Token header)" }
   ],
   "paths": {
+    "/register": {
+      "post": {
+        "tags": ["Keys"],
+        "summary": "Register a free API key",
+        "description": "Public endpoint — no auth required. Submit your app name and email to receive a free-tier key (60 req/min). The key is returned **once** and cannot be retrieved again.",
+        "operationId": "registerKey",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["app_name", "email"],
+                "properties": {
+                  "app_name": { "type": "string", "example": "My Trading Bot" },
+                  "email":    { "type": "string", "example": "dev@example.com" },
+                  "use_case": { "type": "string", "example": "algo trading" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Key created — shown once, store it securely",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "key":        { "type": "string", "example": "pmx_live_a1b2c3d4e5f6..." },
+                    "app_name":   { "type": "string" },
+                    "tier":       { "type": "string", "example": "free" },
+                    "rate_limit": { "type": "string", "example": "60 req/min" },
+                    "message":    { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "app_name and email are required / invalid email" }
+        }
+      }
+    },
+    "/v1/keys/rotate": {
+      "post": {
+        "tags": ["Keys"],
+        "summary": "Rotate your API key",
+        "description": "Generate a new key and immediately invalidate the old one. Authenticate with your current key via `X-API-Key`. The new key inherits the same tier and metadata. **The new key is shown once — save it immediately.**",
+        "operationId": "rotateKey",
+        "responses": {
+          "200": {
+            "description": "New key issued, old key is now invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "key":     { "type": "string", "example": "pmx_live_new_key..." },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Missing or invalid X-API-Key" },
+          "404": { "description": "Key not found in Postgres" }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": ["Health"],
@@ -860,6 +932,17 @@
           "timestamp": { "type": "integer" }
         }
       }
+    },
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "API key obtained from /register. Required on all /v1/* endpoints."
+      }
     }
-  }
+  },
+  "security": [
+    { "ApiKeyAuth": [] }
+  ]
 }
