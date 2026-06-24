@@ -316,6 +316,36 @@ func (h *APIHandler) AdminActivateKey(w http.ResponseWriter, r *http.Request) {
 	jsonResp(w, http.StatusOK, map[string]string{"message": "key activated"})
 }
 
+// AdminDeleteKey permanently deletes a revoked key from Postgres and Redis (admin only).
+// Only keys with active=false can be deleted as a safety guard.
+func (h *APIHandler) AdminDeleteKey(w http.ResponseWriter, r *http.Request) {
+	key := mux.Vars(r)["key"]
+	ctx := r.Context()
+
+	var active bool
+	if err := h.Postgres.QueryRow(ctx, `SELECT active FROM api_keys WHERE key=$1`, key).Scan(&active); err != nil {
+		jsonResp(w, http.StatusNotFound, map[string]string{"error": "key not found"})
+		return
+	}
+	if active {
+		jsonResp(w, http.StatusBadRequest, map[string]string{"error": "key must be revoked before deletion"})
+		return
+	}
+
+	if _, err := h.Postgres.Exec(ctx, `DELETE FROM api_keys WHERE key=$1`, key); err != nil {
+		h.Logger.Error("failed to delete key", "error", err)
+		jsonResp(w, http.StatusInternalServerError, map[string]string{"error": "failed to delete key"})
+		return
+	}
+
+	h.Redis.Del(ctx, "apikey:"+key)
+	h.Redis.Del(ctx, "rl:"+key)
+	h.Redis.Del(ctx, "usage:total:"+key)
+
+	h.Logger.Info("API key deleted", "key", maskKey(key))
+	jsonResp(w, http.StatusOK, map[string]string{"message": "key deleted"})
+}
+
 // AdminResetUsage clears the rate limit counter for a key in Redis (admin only).
 func (h *APIHandler) AdminResetUsage(w http.ResponseWriter, r *http.Request) {
 	key := mux.Vars(r)["key"]

@@ -22,6 +22,9 @@ type Interface interface {
 	SMembers(ctx context.Context, key string) *redis.StringSliceCmd
 	SIsMember(ctx context.Context, key string, member interface{}) *redis.BoolCmd
 	Exists(ctx context.Context, keys ...string) *redis.IntCmd
+	ZAdd(ctx context.Context, key string, score float64, member string) *redis.IntCmd
+	ZRemRangeByScore(ctx context.Context, key, min, max string) *redis.IntCmd
+	ZRangeByScore(ctx context.Context, key, min, max string) ([]string, error)
 	Ping(ctx context.Context) error
 	Close() error
 }
@@ -78,4 +81,16 @@ func (c *Client) Incr(ctx context.Context, key string) *redis.IntCmd {
 
 func (c *Client) Expire(ctx context.Context, key string, expiration time.Duration) *redis.BoolCmd {
 	return c.Client.Expire(ctx, key, expiration)
+}
+
+func (c *Client) ZAdd(ctx context.Context, key string, score float64, member string) *redis.IntCmd {
+	return c.Client.ZAdd(ctx, key, redis.Z{Score: score, Member: member})
+}
+
+func (c *Client) ZRemRangeByScore(ctx context.Context, key, min, max string) *redis.IntCmd {
+	return c.Client.ZRemRangeByScore(ctx, key, min, max)
+}
+
+func (c *Client) ZRangeByScore(ctx context.Context, key, min, max string) ([]string, error) {
+	return c.Client.ZRangeByScore(ctx, key, &redis.ZRangeBy{Min: min, Max: max}).Result()
 }

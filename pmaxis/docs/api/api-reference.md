@@ -587,18 +587,11 @@ curl "http://localhost:8088/v1/markets/0x9f8e.../trades?wallet=0xUserWalletAddre
     "side": "BUY",
     "token": "0xabcd1234...",
     "timestamp": 1749599998000
-  },
-  {
-    "trade_id": "0xa1b2c3d4e5f6071829304152637485960718293a",
-    "market_id": "0x9f8e7d6c5b4a3928170605040302010f9e8d7c6b",
-    "price": 0.628,
-    "size": 1200.00,
-    "side": "SELL",
-    "token": "0xabcd1234...",
-    "timestamp": 1749599990000
   }
 ]
 ```
+
+> To get trades with wallet addresses (maker/taker), use `GET /v1/trades/recent` which joins against the onchain settlement records.
 
 ---
 
@@ -766,6 +759,110 @@ CLOB. Positions settled by market resolution are not included.
 
 ```bash
 curl "http://localhost:8088/v1/positions/closed?wallet=0xAdA100Db00Ca00073811820692005400218FcE1f"
+```
+
+---
+
+## Platform Stats
+
+### `GET /v1/stats`
+Platform-wide aggregate numbers. Cached for **30 seconds**.
+
+All 5 queries run in parallel — response time is bounded by the slowest single query.
+
+```bash
+curl "http://localhost:8088/v1/stats" \
+  -H "X-API-Key: pmx_live_your_key_here"
+```
+
+**Response**
+```json
+{
+  "total_markets": 4821,
+  "active_markets": 1203,
+  "volume_24h": 48293100.5,
+  "trades_24h": 182400,
+  "total_onchain_trades": 755550,
+  "last_trade_at": "2026-06-23T18:25:40Z",
+  "timestamp": 1749999940000
+}
+```
+
+| Field | Source | Description |
+|-------|--------|-------------|
+| `total_markets` | `market_metadata` | All markets ever discovered |
+| `active_markets` | `market_metadata` | Markets with `status=ACTIVE` |
+| `volume_24h` | `price_history_1m` | Sum of volume in last 24h |
+| `trades_24h` | `price_history_1m` | Sum of trade count in last 24h |
+| `total_onchain_trades` | `onchain_trades` | All blockchain-settled trades indexed |
+| `last_trade_at` | `trades` | Timestamp of most recent trade ingested |
+
+---
+
+## Trades
+
+### `GET /v1/trades/recent`
+Latest trades across all markets, enriched with maker/taker wallet addresses where available.
+
+Joins the `trades` table (price, size, side — from WebSocket feed) with `onchain_trades` (maker/taker — from Polygon blockchain) on `tx_hash`. Trades without a blockchain tx_hash will have empty `maker`/`taker` fields.
+
+**Query params**
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `limit` | `50` | Max results (cap: 500) |
+| `market_id` | — | Filter to a specific market |
+
+```bash
+# Latest 50 trades across all markets
+curl "http://localhost:8088/v1/trades/recent" \
+  -H "X-API-Key: pmx_live_your_key_here"
+
+# Filter to one market
+curl "http://localhost:8088/v1/trades/recent?market_id=0x9f8e...&limit=20" \
+  -H "X-API-Key: pmx_live_your_key_here"
+```
+
+**Response**
+```json
+{
+  "count": 3,
+  "data": [
+    {
+      "trade_id": "0xf1e2d3c4b5a6978869504132231415161718191a",
+      "market_id": "0x9f8e7d6c5b4a3928170605040302010f9e8d7c6b",
+      "token": "0xabcd1234...",
+      "price": 0.632,
+      "size": 500.00,
+      "side": "buy",
+      "timestamp": "2026-06-23T18:25:40Z",
+      "tx_hash": "0xf1e2d3c4b5a6978869504132231415161718191a",
+      "maker": "0xe111180000d2663c0091e4f400237545b87b996b",
+      "taker": "0xdef456789abc012def456789abc012def456789a"
+    },
+    {
+      "trade_id": "0xa1b2c3d4e5f6071829304152637485960718293a",
+      "market_id": "0x9f8e7d6c5b4a3928170605040302010f9e8d7c6b",
+      "token": "0xabcd1234...",
+      "price": 0.628,
+      "size": 1200.00,
+      "side": "sell",
+      "timestamp": "2026-06-23T18:24:10Z",
+      "tx_hash": "",
+      "maker": "",
+      "taker": ""
+    }
+  ]
+}
+```
+
+> `maker`/`taker` are populated only when the WebSocket trade event contained a `hash` field that matches a blockchain settlement record. Synthetic/aggregated price events will have empty wallet fields.
+
+**Data model:**
+```
+WebSocket feed  →  trades table        (price, size, side, tx_hash)
+                         ↕ JOIN on tx_hash
+Polygon RPC     →  onchain_trades      (maker, taker, amount)
 ```
 
 ---

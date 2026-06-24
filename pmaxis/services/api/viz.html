@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PMAxis — Data Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent:  #00E676;
+      --accent2: #8B5CF6;
+      --green:   #00E676;
+      --red:     #FF4444;
+      --yellow:  #F59E0B;
+      --radius:  10px;
+    }
+    [data-theme="dark"] {
+      --bg:       #0A0A0A;
+      --surface:  #111111;
+      --surface2: #161616;
+      --border:   #1E1E1E;
+      --text:     #FFFFFF;
+      --muted:    #A1A1AA;
+      --logo-fill:#FFFFFF;
+    }
+    [data-theme="light"] {
+      --bg:       #FFFFFF;
+      --surface:  #F7F7F7;
+      --surface2: #EFEFEF;
+      --border:   #E5E5E5;
+      --text:     #0A0A0A;
+      --muted:    #71717A;
+      --logo-fill:#0A0A0A;
+    }
+
+    body { background: var(--bg); color: var(--text); font-family: 'Space Grotesk', sans-serif; font-size: 14px; min-height: 100vh; -webkit-font-smoothing: antialiased; transition: background 0.2s, color 0.2s; }
+    .logo-path   { fill: var(--logo-fill); transition: fill 0.2s; }
+    .logo-center { fill: #00E676; }
+    .theme-toggle { width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:border-color 0.15s,color 0.15s;flex-shrink:0; }
+    .theme-toggle:hover { border-color:var(--green);color:var(--text); }
+
+    /* Nav */
+    .nav { display: flex; align-items: center; justify-content: space-between; padding: 0 32px; height: 68px; background: var(--bg); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+    .nav-left { display: flex; align-items: center; gap: 12px; }
+    .nav-brand { font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+    .nav-divider { width: 1px; height: 16px; background: var(--border); }
+    .nav-sub { font-size: 13px; color: var(--muted); font-weight: 400; }
+    .nav-right { display: flex; align-items: center; gap: 24px; }
+    .nav-ts { font-size: 12px; color: var(--muted); }
+    .refresh-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); cursor: pointer; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; box-shadow: 0 0 6px rgba(0,230,118,0.7); }
+    .dot.off { background: var(--muted); box-shadow: none; }
+
+    /* Page */
+    .page { max-width: 1280px; margin: 0 auto; padding: 32px 28px; display: flex; flex-direction: column; gap: 40px; }
+
+    /* Section */
+    .section {}
+    .section-head { margin-bottom: 20px; }
+    .section-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+    .section-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 3px 10px; border-radius: 20px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); }
+    .badge-blue { background: rgba(79,142,247,0.1); border-color: rgba(79,142,247,0.3); color: var(--accent); }
+    .build-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+    .build-tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.25); color: var(--accent2); }
+
+    /* Stat cards */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; }
+    .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 10px; }
+    .stat-value { font-size: 30px; font-weight: 700; line-height: 1; }
+    .stat-value.blue { color: var(--accent); }
+    .stat-value.green { color: var(--green); }
+    .stat-value.purple { color: var(--accent2); }
+    .stat-value.yellow { color: var(--yellow); }
+    .stat-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+    /* Table */
+    .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); padding: 12px 16px; text-align: left; background: var(--surface2); border-bottom: 1px solid var(--border); font-weight: 600; }
+    td { padding: 11px 16px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* Side pill */
+    .side { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; }
+    .side-buy { background: rgba(34,197,94,0.15); color: var(--green); }
+    .side-sell { background: rgba(239,68,68,0.15); color: var(--red); }
+
+    /* Status pill */
+    .status { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+    .status-active { background: rgba(34,197,94,0.12); color: var(--green); }
+    .status-closed { background: rgba(100,116,139,0.15); color: var(--muted); }
+    .status-resolved { background: rgba(79,142,247,0.12); color: var(--accent); }
+
+    /* Wallet address */
+    .addr { font-family: monospace; font-size: 12px; color: var(--muted); }
+    .addr span { color: var(--text); }
+
+    /* Chart containers */
+    .chart-row { display: grid; grid-template-columns: 1fr 360px; gap: 16px; align-items: start; }
+    .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .chart-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .chart-title { font-size: 14px; font-weight: 600; }
+    .chart-body { padding: 16px; }
+    #price-chart { width: 100%; height: 320px; }
+    #cat-chart-canvas { height: 260px; }
+    .select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-size: 13px; padding: 6px 10px; border-radius: 6px; outline: none; cursor: pointer; min-width: 220px; font-family: 'Space Grotesk', sans-serif; }
+    .select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(0,230,118,0.08); }
+
+    /* Orderbook */
+    .ob-section { display: flex; flex-direction: column; gap: 0; }
+    .ob-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; padding: 8px 16px; font-weight: 600; border-bottom: 1px solid var(--border); }
+    .ob-label.bids { color: var(--green); }
+    .ob-label.asks { color: var(--red); }
+    .ob-row { display: grid; grid-template-columns: 1fr 1fr 1fr; padding: 6px 16px; font-size: 12px; gap: 8px; position: relative; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .ob-row:last-child { border-bottom: none; }
+    .ob-bar { position: absolute; top: 0; bottom: 0; right: 0; opacity: 0.08; }
+    .ob-bar.bid { background: var(--green); }
+    .ob-bar.ask { background: var(--red); }
+    .ob-val { position: relative; z-index: 1; }
+    .ob-val.green { color: var(--green); }
+    .ob-val.red { color: var(--red); }
+    .ob-head { display: grid; grid-template-columns: 1fr 1fr 1fr; padding: 6px 16px; font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--border); }
+
+    /* Tags cloud */
+    .tag-cloud { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tag-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; background: var(--surface2); border: 1px solid var(--border); font-size: 12px; cursor: default; transition: border-color 0.15s; }
+    .tag-pill:hover { border-color: var(--accent); }
+    .tag-count { color: var(--accent); font-weight: 600; font-size: 11px; }
+
+    /* Two col layout */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+    /* Empty/loading */
+    .empty { padding: 40px; text-align: center; color: var(--muted); font-size: 13px; }
+    .loading { animation: pulse 1.5s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* Rank */
+    .rank { width: 24px; height: 24px; border-radius: 6px; background: var(--surface2); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--muted); }
+    .rank-1 { background: rgba(245,158,11,0.15); color: var(--yellow); }
+    .rank-2 { background: rgba(100,116,139,0.2); color: #94a3b8; }
+    .rank-3 { background: rgba(180,83,9,0.15); color: #c2783d; }
+
+    /* Scrollable trade feed */
+    .trade-feed { max-height: 380px; overflow-y: auto; }
+    .trade-feed::-webkit-scrollbar { width: 4px; }
+    .trade-feed::-webkit-scrollbar-track { background: transparent; }
+    .trade-feed::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* Price */
+    .price-val { font-family: monospace; }
+
+    /* Divider */
+    .divider { height: 1px; background: var(--border); }
+
+    @media (max-width: 900px) {
+      .chart-row { grid-template-columns: 1fr; }
+      .two-col { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-left">
+    <a href="/" style="display:flex;align-items:center;gap:12px;text-decoration:none;">
+      <svg width="38" height="38" viewBox="0 0 803 795" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path class="logo-path" d="M719.962 114.503C724.439 116.738 746.095 136.885 751.202 141.275C743.13 152.558 727.925 169.756 718.52 180.14C667.116 237.986 604.881 285.207 535.329 319.136C528.842 322.253 501.635 334.541 495.686 335.719C493.671 334.794 493.692 334.098 492.165 332.003C481.767 318.552 471.393 311.209 457.07 302.886C532.805 280.515 608.565 231.922 664.325 176.745C684.543 156.739 701.958 136.391 719.962 114.503Z"/>
+        <path class="logo-path" d="M103.731 114.306C106.532 116.771 116.373 129.166 119.413 132.747C128.996 144.095 139.01 155.071 149.433 165.651C213.595 230.118 280.396 274.662 366.923 302.87C352.429 310.952 342.084 318.858 331.657 332.058L328.841 336.043C319.39 333.204 296.981 322.854 288.065 318.523C216.559 283.785 152.851 232.607 99.9718 173.495C90.9908 163.455 80.8168 152.054 72.5908 141.466C80.8318 133.892 95.1408 120.907 103.731 114.306Z"/>
+        <path class="logo-path" d="M500.639 448.854C510.914 451.537 533.17 462.09 542.691 466.637C603.572 495.713 657.966 537.098 703.779 586.511C719.932 603.934 737.715 624.431 751.412 643.924C743.385 651.277 729.34 662.024 720.529 669.194C717.837 667.836 711.304 658.002 708.901 655.026C699.702 643.633 690.268 632.508 680.354 621.743C622.903 558.485 550.473 510.682 469.721 482.728C482.46 472.687 492.344 462.846 500.639 448.854Z"/>
+        <path class="logo-path" d="M322.57 449.109C324.527 450.34 331.226 460.882 333.985 463.96C341.099 471.897 346.509 476.457 354.784 482.779C251.686 517.317 170.299 583.28 104.517 668.566L103.202 668.709C97.76 665.303 78.849 649.187 72.52 644.052C81.2 630.876 98.635 610.478 109.165 598.717C157.332 544.918 214.867 498.845 280.012 467.285C293.255 460.869 308.655 453.904 322.57 449.109Z"/>
+        <path class="logo-center" d="M404.129 336.369C437.402 331.991 467.935 355.383 472.368 388.649C476.801 421.915 453.459 452.487 420.201 456.975C386.865 461.473 356.206 438.064 351.762 404.721C347.319 371.378 370.778 340.757 404.129 336.369Z"/>
+      </svg>
+      <span class="nav-brand">PMAxis</span>
+    </a>
+    <div class="nav-divider"></div>
+    <span class="nav-sub">Data Explorer</span>
+  </div>
+  <div class="nav-right">
+    <a href="/docs" style="font-size:13px;color:var(--muted);text-decoration:none;font-weight:500;transition:color 0.15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">Docs</a>
+    <a href="/status" style="font-size:13px;color:var(--muted);text-decoration:none;font-weight:500;transition:color 0.15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">Status</a>
+    <a href="/register" style="font-size:13px;color:var(--muted);text-decoration:none;font-weight:500;transition:color 0.15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">Get API Key</a>
+    <span class="nav-ts" id="last-updated">Loading…</span>
+    <label class="refresh-toggle" title="Toggle auto-refresh every 30s">
+      <span class="dot" id="refresh-dot"></span>
+      <span id="refresh-label">Live</span>
+      <input type="checkbox" id="auto-refresh" checked style="display:none" onchange="toggleRefresh()" />
+    </label>
+    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">
+      <svg id="theme-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+  </div>
+</nav>
+
+<div class="page">
+
+  <!-- ── 1. Platform Overview ─────────────────────────────────────────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div class="section-title">Platform Overview</div>
+      <div class="section-meta">
+        <span class="badge badge-blue">Endpoint: GET /v1/stats</span>
+        <span class="badge">Cached 30s</span>
+        <div class="build-tags">
+          <span class="build-tag">Dashboard widgets</span>
+          <span class="build-tag">Status pages</span>
+          <span class="build-tag">Health monitors</span>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px;">Top-level numbers for the whole platform. Use these to power summary cards in your app or monitor platform health.</p>
+    </div>
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-card"><div class="stat-label">Total Markets</div><div class="stat-value blue loading" id="s-total">—</div><div class="stat-sub">All markets ever indexed</div></div>
+      <div class="stat-card"><div class="stat-label">Active Markets</div><div class="stat-value green loading" id="s-active">—</div><div class="stat-sub">Currently open for trading</div></div>
+      <div class="stat-card"><div class="stat-label">24h Volume</div><div class="stat-value yellow loading" id="s-vol">—</div><div class="stat-sub">USDC traded in last 24h</div></div>
+      <div class="stat-card"><div class="stat-label">24h Trades</div><div class="stat-value purple loading" id="s-trades">—</div><div class="stat-sub">Trade events processed</div></div>
+      <div class="stat-card"><div class="stat-label">Onchain Trades</div><div class="stat-value blue loading" id="s-onchain">—</div><div class="stat-sub">Blockchain-settled, all time</div></div>
+      <div class="stat-card"><div class="stat-label">Last Trade At</div><div class="stat-value loading" style="font-size:16px" id="s-last">—</div><div class="stat-sub">Most recent ingested trade</div></div>
+    </div>
+  </section>
+
+  <!-- ── 2. Live Trade Feed ─────────────────────────────────────────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div class="section-title">Live Trade Feed</div>
+      <div class="section-meta">
+        <span class="badge badge-blue">Endpoint: GET /v1/trades/recent</span>
+        <span class="badge">Updates every 30s</span>
+        <div class="build-tags">
+          <span class="build-tag">Trading bots</span>
+          <span class="build-tag">Alert systems</span>
+          <span class="build-tag">Trade analytics</span>
+          <span class="build-tag">Whale trackers</span>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px;">Every buy/sell as it happens. Joined with on-chain data so you get the maker and taker wallet addresses for each trade — roughly 60-80% of trades have wallet info via tx_hash.</p>
+    </div>
+    <div class="table-wrap">
+      <div class="trade-feed">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Market ID</th>
+              <th>Side</th>
+              <th>Price</th>
+              <th>Size (USDC)</th>
+              <th>Maker</th>
+              <th>Taker</th>
+              <th>Tx Hash</th>
+            </tr>
+          </thead>
+          <tbody id="trades-body"><tr><td colspan="8" class="empty loading">Loading trades…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 3. Top Markets ─────────────────────────────────────────────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div class="section-title">Top Markets by Volume</div>
+      <div class="section-meta">
+        <span class="badge badge-blue">Endpoint: GET /v1/markets/top</span>
+        <span class="badge">Period: 24h</span>
+        <div class="build-tags">
+          <span class="build-tag">Market screeners</span>
+          <span class="build-tag">Portfolio trackers</span>
+          <span class="build-tag">Leaderboards</span>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px;">The most actively traded markets in the last 24 hours. Each market is a yes/no question about a real-world event. Click a market to load its price chart below.</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Market</th>
+            <th>Price</th>
+            <th>24h Volume</th>
+            <th>24h Trades</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="markets-body"><tr><td colspan="6" class="empty loading">Loading markets…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── 4. Price Chart + Orderbook ───────────────────────────────────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div class="section-title">Market Deep Dive</div>
+      <div class="section-meta">
+        <span class="badge badge-blue">GET /v1/markets/{id}/candles</span>
+        <span class="badge badge-blue">GET /v1/markets/{id}/orderbook</span>
+        <div class="build-tags">
+          <span class="build-tag">TradingView integration</span>
+          <span class="build-tag">Algo trading</span>
+          <span class="build-tag">Market making</span>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px;">Pick any market to see its OHLCV price history (1h candles, last 7 days) and live orderbook. The orderbook shows bids and asks from the Polymarket CLOB, updated in real-time via Redis.</p>
+    </div>
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-head">
+          <span class="chart-title">Price History — 1h Candles (7 days)</span>
+          <span class="badge">OHLCV</span>
+        </div>
+        <div style="padding:10px 14px 0; display:flex; align-items:center; gap:8px;">
+          <label style="font-size:12px;color:var(--muted);">Market:</label>
+          <select class="select" id="market-select" onchange="selectMarketChart(this.value)" style="font-size:12px;">
+            <option value="">— select —</option>
+          </select>
+          <span style="font-size:11px;color:var(--muted)" id="market-name-label"></span>
+        </div>
+        <div class="chart-body" style="padding:0">
+          <div id="price-chart"></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-head">
+          <span class="chart-title">Live Orderbook</span>
+          <span class="badge">From Redis</span>
+        </div>
+        <div style="padding:10px 14px 0; display:flex; align-items:center; gap:8px;">
+          <label style="font-size:12px;color:var(--muted);">Market:</label>
+          <select class="select" id="orderbook-select" onchange="loadOrderbook(this.value)" style="font-size:12px;">
+            <option value="">— select —</option>
+          </select>
+        </div>
+        <div id="orderbook-wrap" style="padding-top:8px">
+          <p class="empty">Select a market to load orderbook</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 5. Categories ──────────────────────────────────────────────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div class="section-title">Market Categories</div>
+      <div class="section-meta">
+        <span class="badge badge-blue">Endpoint: GET /v1/categories</span>
+        <div class="build-tags">
+          <span class="build-tag">Category filters</span>
+          <span class="build-tag">Thematic indexes</span>
+          <span class="build-tag">Market discovery</span>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px;">Markets are grouped by topic category. Use this to build filtered views — e.g. show only "politics" or "sports" markets. Each bar shows how many markets exist in that category.</p>
+    </div>
+    <div class="two-col">
+      <div class="chart-card">
+        <div class="chart-head"><span class="chart-title">Markets per Category</span></div>
+        <div class="chart-body"><canvas id="cat-chart-canvas"></canvas></div>
+      </div>
+      <div class="table-wrap" style="align-self:start">
+        <table>
+          <thead><tr><th>Category</th><th>Markets</th></tr></thead>
+          <tbody id="cat-body"><tr><td colspan="2" class="empty loading">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 6. Tags ───────────────────────────────────────────────────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div class="section-title">Tags</div>
+      <div class="section-meta">
+        <span class="badge badge-blue">Endpoint: GET /v1/tags</span>
+        <div class="build-tags">
+          <span class="build-tag">Tag-based watchlists</span>
+          <span class="build-tag">Topic trackers</span>
+          <span class="build-tag">Search filters</span>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px;">Fine-grained labels applied to markets. A market about "Will Trump win the 2026 midterms?" might be tagged with both "politics" and "trump". Number = market count for that tag.</p>
+    </div>
+    <div class="tag-cloud" id="tag-cloud"><span class="badge loading">Loading tags…</span></div>
+  </section>
+
+  <!-- ── 7. Data Model Reference ──────────────────────────────────────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div class="section-title">Data Model Reference</div>
+      <div class="section-meta">
+        <span class="badge">How data flows through PMAxis</span>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px;">Understand where each piece of data comes from before you build on it.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">
+
+      <div class="chart-card">
+        <div class="chart-head"><span class="chart-title">Trades</span><span class="badge">ClickHouse</span></div>
+        <div class="chart-body" style="font-size:12px;line-height:1.8;color:var(--muted);">
+          <p style="margin-bottom:8px;">Source: <span style="color:var(--text)">Polymarket WebSocket feed</span></p>
+          <p style="margin-bottom:8px;">Fields: <span style="color:var(--text)">trade_id, market_id, token, price, size, side, timestamp, tx_hash</span></p>
+          <p style="margin-bottom:8px;">Key: <span style="color:var(--text)">tx_hash</span> links to onchain_trades for wallet addresses</p>
+          <p>Retention: <span style="color:var(--green)">Permanent</span></p>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head"><span class="chart-title">Onchain Trades</span><span class="badge">ClickHouse</span></div>
+        <div class="chart-body" style="font-size:12px;line-height:1.8;color:var(--muted);">
+          <p style="margin-bottom:8px;">Source: <span style="color:var(--text)">Polygon blockchain (ERC-1155 settlements)</span></p>
+          <p style="margin-bottom:8px;">Fields: <span style="color:var(--text)">tx_hash, maker, taker, token_id, amount, timestamp</span></p>
+          <p style="margin-bottom:8px;">Join: <span style="color:var(--text)">tx_hash = trades.tx_hash</span> to enrich trades with wallets</p>
+          <p>Retention: <span style="color:var(--green)">Permanent</span></p>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head"><span class="chart-title">Price History</span><span class="badge">ClickHouse</span></div>
+        <div class="chart-body" style="font-size:12px;line-height:1.8;color:var(--muted);">
+          <p style="margin-bottom:8px;">Tables: <span style="color:var(--text)">price_history_1m, price_history_1h</span></p>
+          <p style="margin-bottom:8px;">Fields: <span style="color:var(--text)">market_id, timestamp, open, high, low, close, volume</span></p>
+          <p style="margin-bottom:8px;">Use for: <span style="color:var(--text)">charting, backtesting, OHLCV analysis</span></p>
+          <p>Retention: <span style="color:var(--green)">Permanent</span></p>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head"><span class="chart-title">Orderbook</span><span class="badge">Redis</span></div>
+        <div class="chart-body" style="font-size:12px;line-height:1.8;color:var(--muted);">
+          <p style="margin-bottom:8px;">Source: <span style="color:var(--text)">Polymarket CLOB, updated real-time</span></p>
+          <p style="margin-bottom:8px;">Fields: <span style="color:var(--text)">bids[], asks[] each with price + size</span></p>
+          <p style="margin-bottom:8px;">Use for: <span style="color:var(--text)">market making, spread analysis, depth charts</span></p>
+          <p>Retention: <span style="color:var(--yellow)">In-memory only (latest state)</span></p>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head"><span class="chart-title">Markets</span><span class="badge">Postgres + Redis</span></div>
+        <div class="chart-body" style="font-size:12px;line-height:1.8;color:var(--muted);">
+          <p style="margin-bottom:8px;">Source: <span style="color:var(--text)">Polymarket Gamma API (crawled continuously)</span></p>
+          <p style="margin-bottom:8px;">Fields: <span style="color:var(--text)">market_id, question, status, category, price, bid, ask…</span></p>
+          <p style="margin-bottom:8px;">Live prices: <span style="color:var(--text)">Redis (updated by WebSocket processor)</span></p>
+          <p>Retention: <span style="color:var(--green)">Permanent</span></p>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head"><span class="chart-title">Signals</span><span class="badge">Redis</span></div>
+        <div class="chart-body" style="font-size:12px;line-height:1.8;color:var(--muted);">
+          <p style="margin-bottom:8px;">Source: <span style="color:var(--text)">Processor hub (computed from price/trade feed)</span></p>
+          <p style="margin-bottom:8px;">Types: <span style="color:var(--text)">momentum, volume_spike, spread_alert…</span></p>
+          <p style="margin-bottom:8px;">Endpoint: <span style="color:var(--text)">GET /v1/markets/{id}/signals</span></p>
+          <p>Retention: <span style="color:var(--yellow)">In-memory only (recent signals)</span></p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── 8. Available Endpoints ──────────────────────────────────────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div class="section-title">All Available Endpoints</div>
+      <div class="section-meta">
+        <span class="badge">Full docs at <a href="/docs" style="color:var(--accent)">/docs</a></span>
+        <span class="badge">Requires X-API-Key header</span>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px;">Get a free API key at <a href="/register" style="color:var(--accent)">/register</a>. All endpoints return JSON. Rate limit: 60 req/min on free tier.</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Method</th><th>Endpoint</th><th>What it returns</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td><span class="side side-buy">GET</span></td><td><code>/v1/stats</code></td><td>Platform-wide aggregate numbers</td><td>ClickHouse</td></tr>
+          <tr><td><span class="side side-buy">GET</span></td><td><code>/v1/markets</code></td><td>Paginated market list with live prices</td><td>Postgres + Redis</td></tr>
+          <tr><td><span class="side side-buy">GET</span></td><td><code>/v1/markets/top</code></td><td>Top markets by volume or trade count</td><td>ClickHouse</td></tr>
+          <tr><td><span class="side side-buy">GET</span></td><td><code>/v1/markets/search?q=</code></td><td>Full-text search on market titles</td><td>Postgres</td></tr>
+          <tr><td><span class="side side-buy">GET</span></td><td><code>/v1/markets/{id}</code></td><td>Full market detail + 24h stats</td><td>Postgres + Redis</td></tr>
+          <tr><td><span class="side side-buy">GET</span></td><td><code>/v1/markets/{id}/price</code></td><td>Live mid-price, bid, ask, spread</td><td>Redis</td></tr>
+          <tr><td><span class="side side-buy">GET</span></td><td><code>/v1/markets/{id}/orderbook</code></td><td>Live L2 orderbook (bids + asks)</td><td>Redis</td></tr>
+          <tr><td><span class="side side-buy">GET</span></td><td><code>/v1/markets/{id}/trades</code></td><td>Trade history for one market</td><td>ClickHouse</td></tr>
+          <tr><td><span class="side side-buy">GET</span></td><td><code>/v1/markets/{id}/candles</code></td><td>OHLCV candles (1m or 1h resolution)</td><td>ClickHouse</td></tr>
+          <tr><td><span class="side side-buy">GET</span></td><td><code>/v1/markets/{id}/signals</code></td><td>Trading signals (momentum, volume…)</td><td>Redis</td></tr>
+          <tr><td><span class="side side-buy">GET</span></td><td><code>/v1/trades/recent</code></td><td>Recent trades with maker/taker wallets</td><td>ClickHouse JOIN</td></tr>
+          <tr><td><span class="side side-buy">GET</span></td><td><code>/v1/prices?ids=</code></td><td>Batch price lookup (up to 100 markets)</td><td>Redis</td></tr>
+          <tr><td><span class="side side-buy">GET</span></td><td><code>/v1/categories</code></td><td>All categories with market counts</td><td>Postgres</td></tr>
+          <tr><td><span class="side side-buy">GET</span></td><td><code>/v1/tags</code></td><td>All tags with market counts</td><td>Postgres</td></tr>
+          <tr><td><span class="side side-buy">GET</span></td><td><code>/v1/wallets/{addr}/onchain</code></td><td>On-chain trades for any wallet</td><td>ClickHouse</td></tr>
+          <tr><td><span class="side side-buy">GET</span></td><td><code>/v1/wallets/{addr}/activity</code></td><td>Activity history (watched wallets only)</td><td>ClickHouse</td></tr>
+          <tr><td><span class="side side-buy">GET</span></td><td><code>/v1/positions?wallet=</code></td><td>Open positions for a wallet</td><td>Polymarket Data API</td></tr>
+          <tr><td><span class="side side-sell">POST</span></td><td><code>/register</code></td><td>Get a free API key</td><td>Postgres</td></tr>
+          <tr><td><span class="side side-buy">GET</span></td><td><code>/stream</code> (WebSocket)</td><td>Real-time price, trade, signal events</td><td>Kafka → WS</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  const BASE = '/viz/data';
+  let catChart = null;
+  let priceChart = null;
+  let autoRefreshEnabled = true;
+  let refreshTimer = null;
+  let topMarkets = [];
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  async function fetchJSON(url) {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) return null;
+      return await r.json();
+    } catch { return null; }
+  }
+
+  function fmt(n, decimals = 0) {
+    if (n == null) return '—';
+    if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+    return Number(n).toFixed(decimals);
+  }
+
+  function fmtPrice(n) {
+    if (n == null) return '—';
+    return Number(n).toFixed(4);
+  }
+
+  function fmtAddr(addr) {
+    if (!addr) return '<span style="color:var(--muted)">—</span>';
+    const s = addr.length > 10 ? addr.slice(0, 6) + '…' + addr.slice(-4) : addr;
+    return `<span class="addr" title="${addr}"><span>${s}</span></span>`;
+  }
+
+  function fmtTime(ts) {
+    if (!ts) return '—';
+    const d = new Date(ts);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  function fmtTxHash(h) {
+    if (!h) return '<span style="color:var(--muted)">—</span>';
+    const s = h.slice(0, 6) + '…' + h.slice(-4);
+    return `<span class="addr" title="${h}"><span>${s}</span></span>`;
+  }
+
+  function statusBadge(s) {
+    const cls = s === 'ACTIVE' ? 'status-active' : s === 'RESOLVED' ? 'status-resolved' : 'status-closed';
+    return `<span class="status ${cls}">${s}</span>`;
+  }
+
+  // ── Stats ──────────────────────────────────────────────────────────────────
+
+  async function loadStats() {
+    const d = await fetchJSON(`${BASE}/stats`);
+    if (!d) return;
+    el('s-total').textContent = fmt(d.total_markets);
+    el('s-active').textContent = fmt(d.active_markets);
+    el('s-vol').textContent = '$' + fmt(d.volume_24h, 0);
+    el('s-trades').textContent = fmt(d.trades_24h);
+    el('s-onchain').textContent = fmt(d.total_onchain_trades);
+    if (d.last_trade_at) {
+      const dt = new Date(d.last_trade_at);
+      el('s-last').textContent = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      el('s-last').title = dt.toLocaleString();
+    }
+    ['s-total','s-active','s-vol','s-trades','s-onchain','s-last'].forEach(id => el(id).classList.remove('loading'));
+  }
+
+  // ── Trades ─────────────────────────────────────────────────────────────────
+
+  async function loadTrades() {
+    const d = await fetchJSON(`${BASE}/trades/recent?limit=30`);
+    const tbody = el('trades-body');
+    if (!d || !d.data || d.data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty">No trades found</td></tr>';
+      return;
+    }
+    tbody.innerHTML = d.data.map(t => {
+      const side = (t.side || '').toLowerCase();
+      const sideCls = side === 'buy' ? 'side-buy' : 'side-sell';
+      return `<tr>
+        <td>${fmtTime(t.timestamp)}</td>
+        <td><code style="font-size:12px">${t.market_id || '—'}</code></td>
+        <td><span class="side ${sideCls}">${(side || '—').toUpperCase()}</span></td>
+        <td class="price-val">${fmtPrice(t.price)}</td>
+        <td class="price-val">${fmtPrice(t.size)}</td>
+        <td>${fmtAddr(t.maker)}</td>
+        <td>${fmtAddr(t.taker)}</td>
+        <td>${fmtTxHash(t.tx_hash)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── Top Markets ────────────────────────────────────────────────────────────
+
+  async function loadTopMarkets() {
+    const d = await fetchJSON(`${BASE}/markets/top?by=volume&limit=15&period=24h`);
+    const tbody = el('markets-body');
+    if (!d || d.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">No markets found</td></tr>';
+      return;
+    }
+    topMarkets = d;
+    populateMarketPicker();
+    tbody.innerHTML = d.map((m, i) => {
+      const rank = i + 1;
+      const rankCls = rank <= 3 ? `rank-${rank}` : '';
+      const q = m.question || m.market_id || '—';
+      const shortQ = q.length > 55 ? q.slice(0, 52) + '…' : q;
+      return `<tr style="cursor:pointer" onclick="selectMarketFromRow('${m.market_id}', this)">
+        <td><span class="rank ${rankCls}">${rank}</span></td>
+        <td title="${q}"><strong>${shortQ}</strong><br><code style="font-size:11px;color:var(--muted)">${m.market_id}</code></td>
+        <td class="price-val">${fmtPrice(m.price || m.mid_price)}</td>
+        <td>${m.volume_period != null ? '$' + fmt(m.volume_period) : (m.volume_24h != null ? '$' + fmt(m.volume_24h) : '—')}</td>
+        <td>${m.trades_period != null ? fmt(m.trades_period) : (m.trades_24h != null ? fmt(m.trades_24h) : '—')}</td>
+        <td>${statusBadge(m.status || 'ACTIVE')}</td>
+      </tr>`;
+    }).join('');
+
+    // Auto-select the first market for the chart if nothing selected yet
+    if (!el('market-select').value && d.length > 0) {
+      selectMarketChart(d[0].market_id);
+    }
+  }
+
+  function populateMarketPicker() {
+    const sel = el('market-select');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">— select —</option>' +
+      topMarkets.map(m => {
+        const q = (m.question || m.market_id || '').slice(0, 50);
+        return `<option value="${m.market_id}">${q}</option>`;
+      }).join('');
+    if (current) sel.value = current;
+  }
+
+  function populateOrderbookPicker(markets) {
+    const sel = el('orderbook-select');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">— select —</option>' +
+      markets.map(m => {
+        const label = (m.title || m.market_id || '').slice(0, 50);
+        return `<option value="${m.market_id}">${label || m.market_id}</option>`;
+      }).join('');
+    if (current) sel.value = current;
+    if (!sel.value && markets.length > 0) {
+      sel.value = markets[0].market_id;
+      loadOrderbook(markets[0].market_id);
+    }
+  }
+
+  async function loadAvailableOrderbooks() {
+    const d = await fetchJSON(`${BASE}/orderbooks/available`);
+    if (d && d.markets && d.markets.length > 0) {
+      populateOrderbookPicker(d.markets);
+    }
+  }
+
+  function selectMarketFromRow(id, tr) {
+    document.querySelectorAll('#markets-body tr').forEach(r => r.style.background = '');
+    tr.style.background = 'rgba(79,142,247,0.07)';
+    el('market-select').value = id;
+    selectMarketChart(id);
+  }
+
+  async function selectMarketChart(id) {
+    if (!id) return;
+    el('market-select').value = id;
+    const m = topMarkets.find(x => x.market_id === id);
+    el('market-name-label').textContent = m ? (m.question || '').slice(0, 60) : '';
+    await loadPriceChart(id);
+  }
+
+  // ── Price Chart ────────────────────────────────────────────────────────────
+
+  async function loadPriceChart(id) {
+    const now = Math.floor(Date.now() / 1000);
+    const from = now - 7 * 24 * 3600;
+    const d = await fetchJSON(`${BASE}/markets/${id}/candles?resolution=60&from=${from}&to=${now}`);
+
+    const container = el('price-chart');
+    container.innerHTML = '';
+
+    if (!d || d.s !== 'ok' || !d.t || d.t.length === 0) {
+      container.innerHTML = '<p class="empty" style="padding:60px">No price data for this market yet</p>';
+      return;
+    }
+
+    if (priceChart) { priceChart.remove(); priceChart = null; }
+
+    container.style.height = '320px';
+    priceChart = LightweightCharts.createChart(container, {
+      width: container.clientWidth,
+      height: 320,
+      layout: { background: { color: '#151820' }, textColor: '#94a3b8' },
+      grid: { vertLines: { color: '#252a38' }, horzLines: { color: '#252a38' } },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      rightPriceScale: { borderColor: '#252a38' },
+      timeScale: { borderColor: '#252a38', timeVisible: true },
+    });
+
+    const candleSeries = priceChart.addCandlestickSeries({
+      upColor: '#22c55e', downColor: '#ef4444',
+      borderUpColor: '#22c55e', borderDownColor: '#ef4444',
+      wickUpColor: '#22c55e', wickDownColor: '#ef4444',
+    });
+
+    const candles = d.t.map((t, i) => ({
+      time: t,
+      open: d.o[i], high: d.h[i], low: d.l[i], close: d.c[i],
+    }));
+    candleSeries.setData(candles);
+
+    // Volume histogram on separate pane
+    const volSeries = priceChart.addHistogramSeries({
+      color: 'rgba(79,142,247,0.3)',
+      priceFormat: { type: 'volume' },
+      priceScaleId: 'vol',
+    });
+    priceChart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+    volSeries.setData(d.t.map((t, i) => ({ time: t, value: d.v[i] })));
+
+    priceChart.timeScale().fitContent();
+
+    // Resize observer
+    new ResizeObserver(() => {
+      if (priceChart) priceChart.applyOptions({ width: container.clientWidth });
+    }).observe(container);
+  }
+
+  // ── Orderbook ──────────────────────────────────────────────────────────────
+
+  async function loadOrderbook(id) {
+    if (!id) return;
+    const d = await fetchJSON(`${BASE}/markets/${id}/orderbook`);
+    const wrap = el('orderbook-wrap');
+
+    if (!d) {
+      wrap.innerHTML = '<p class="empty">No live orderbook for this market</p>';
+      return;
+    }
+
+    const bids = (d.bids || []).slice(0, 8).sort((a, b) => b.price - a.price);
+    const asks = (d.asks || []).slice(0, 8).sort((a, b) => a.price - b.price);
+
+    const maxBidSize = Math.max(...bids.map(b => b.size || 0), 1);
+    const maxAskSize = Math.max(...asks.map(a => a.size || 0), 1);
+
+    function obRows(arr, type, maxSize) {
+      return arr.map(r => {
+        const pct = ((r.size || 0) / maxSize * 100).toFixed(1);
+        const cls = type === 'bid' ? 'green' : 'red';
+        return `<div class="ob-row">
+          <div class="ob-bar ${type}" style="width:${pct}%"></div>
+          <span class="ob-val ${cls}">${fmtPrice(r.price)}</span>
+          <span class="ob-val">${fmt(r.size, 2)}</span>
+          <span class="ob-val" style="color:var(--muted);text-align:right">${pct}%</span>
+        </div>`;
+      }).join('');
+    }
+
+    wrap.innerHTML = `
+      <div class="ob-section">
+        <div class="ob-head"><span>Price</span><span>Size</span><span>Depth</span></div>
+        <div class="ob-label asks">Asks (Sell)</div>
+        ${obRows(asks.slice().reverse(), 'ask', maxAskSize)}
+        <div style="padding:8px 16px;text-align:center;font-size:11px;color:var(--muted);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+          Spread: <strong style="color:var(--text)">${asks[0] && bids[0] ? fmtPrice(asks[0].price - bids[0].price) : '—'}</strong>
+        </div>
+        <div class="ob-label bids">Bids (Buy)</div>
+        ${obRows(bids, 'bid', maxBidSize)}
+      </div>`;
+  }
+
+  // ── Categories ─────────────────────────────────────────────────────────────
+
+  async function loadCategories() {
+    const d = await fetchJSON(`${BASE}/categories`);
+    const tbody = el('cat-body');
+    if (!d || d.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="2" class="empty">No data</td></tr>';
+      return;
+    }
+    const top = d.slice(0, 15);
+    tbody.innerHTML = top.map(c => `<tr>
+      <td>${c.category || '—'}</td>
+      <td><strong>${fmt(c.market_count)}</strong></td>
+    </tr>`).join('');
+
+    const ctx = el('cat-chart-canvas').getContext('2d');
+    if (catChart) catChart.destroy();
+    catChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: top.map(c => c.category || '?'),
+        datasets: [{ data: top.map(c => c.market_count || 0), backgroundColor: 'rgba(79,142,247,0.6)', borderColor: 'rgba(79,142,247,1)', borderWidth: 1, borderRadius: 4 }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: '#252a38' }, ticks: { color: '#64748b' } },
+          y: { grid: { color: '#252a38' }, ticks: { color: '#e2e8f0', font: { size: 11 } } },
+        },
+      },
+    });
+  }
+
+  // ── Tags ───────────────────────────────────────────────────────────────────
+
+  async function loadTags() {
+    const d = await fetchJSON(`${BASE}/tags`);
+    const cloud = el('tag-cloud');
+    if (!d || d.length === 0) { cloud.innerHTML = '<span class="badge">No tags</span>'; return; }
+    const top = d.slice(0, 40);
+    const max = Math.max(...top.map(t => t.market_count || 0), 1);
+    cloud.innerHTML = top.map(t => {
+      const pct = (t.market_count || 0) / max;
+      const size = 11 + Math.round(pct * 6);
+      return `<span class="tag-pill" style="font-size:${size}px">${t.tag || '?'}<span class="tag-count">${t.market_count}</span></span>`;
+    }).join('');
+  }
+
+  // ── Refresh ────────────────────────────────────────────────────────────────
+
+  async function refresh() {
+    await Promise.all([loadStats(), loadTrades(), loadTopMarkets(), loadCategories(), loadTags()]);
+    const chartSel = el('market-select');
+    if (chartSel.value) await loadPriceChart(chartSel.value);
+    const obSel = el('orderbook-select');
+    if (obSel.value) await loadOrderbook(obSel.value);
+    el('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  }
+
+  function scheduleRefresh() {
+    clearTimeout(refreshTimer);
+    if (autoRefreshEnabled) refreshTimer = setTimeout(async () => { await refresh(); scheduleRefresh(); }, 30000);
+  }
+
+  function toggleRefresh() {
+    autoRefreshEnabled = el('auto-refresh').checked;
+    el('refresh-dot').className = 'dot' + (autoRefreshEnabled ? '' : ' off');
+    el('refresh-label').textContent = autoRefreshEnabled ? 'Live' : 'Paused';
+    scheduleRefresh();
+  }
+
+  function el(id) { return document.getElementById(id); }
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+
+  (async () => {
+    await Promise.all([refresh(), loadAvailableOrderbooks()]);
+    scheduleRefresh();
+  })();
+
+  /* ── Theme ── */
+  const ICON_MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+  const ICON_SUN  = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    const icon = document.getElementById('theme-icon');
+    if (icon) icon.innerHTML = t === 'dark' ? ICON_MOON : ICON_SUN;
+    localStorage.setItem('pmaxis-theme', t);
+  }
+  function toggleTheme() {
+    applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  }
+  applyTheme(localStorage.getItem('pmaxis-theme') || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'));
+</script>
+
+</body>
+</html>

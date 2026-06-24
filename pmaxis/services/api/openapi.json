@@ -18,9 +18,10 @@
   "tags": [
     { "name": "Keys", "description": "API key registration and rotation (self-service)" },
     { "name": "Health", "description": "Service health check" },
+    { "name": "Stats", "description": "Platform-wide aggregate statistics" },
     { "name": "Markets", "description": "Market listing, search, and detail" },
     { "name": "Prices", "description": "Live prices and batch lookups" },
-    { "name": "Trades", "description": "Trade history" },
+    { "name": "Trades", "description": "Trade history with wallet addresses" },
     { "name": "Orderbook", "description": "Live orderbook state" },
     { "name": "Price History", "description": "OHLCV candles and price history" },
     { "name": "Taxonomy", "description": "Categories, tags, series, and events" },
@@ -121,6 +122,46 @@
                     "timestamp": { "type": "integer" }
                   }
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/stats": {
+      "get": {
+        "tags": ["Stats"],
+        "summary": "Platform-wide statistics",
+        "description": "Returns aggregate platform numbers: total markets, active markets, 24h volume, 24h trades, total onchain trades, and last ingestion timestamp. Cached for 30 seconds.",
+        "operationId": "getPlatformStats",
+        "responses": {
+          "200": {
+            "description": "Platform statistics",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PlatformStats" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trades/recent": {
+      "get": {
+        "tags": ["Trades"],
+        "summary": "Recent trades with wallet addresses",
+        "description": "Returns the latest trades enriched with maker/taker wallet addresses. Joins the `trades` table (price, size, side from WebSocket feed) with `onchain_trades` (maker/taker from Polygon blockchain) on `tx_hash`. Trades without a blockchain tx_hash will have empty wallet fields.",
+        "operationId": "getRecentTrades",
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50, "maximum": 500 }, "description": "Max results" },
+          { "name": "market_id", "in": "query", "schema": { "type": "string" }, "description": "Filter to a specific market" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recent trades with optional wallet info",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RecentTradesResponse" }
               }
             }
           }
@@ -916,6 +957,40 @@
           "sell_count": { "type": "integer" },
           "first_seen": { "type": "string", "format": "date-time" },
           "last_seen": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PlatformStats": {
+        "type": "object",
+        "properties": {
+          "total_markets": { "type": "integer", "example": 4821 },
+          "active_markets": { "type": "integer", "example": 1203 },
+          "volume_24h": { "type": "number", "format": "float", "example": 48293100.5 },
+          "trades_24h": { "type": "integer", "example": 182400 },
+          "total_onchain_trades": { "type": "integer", "example": 755550 },
+          "last_trade_at": { "type": "string", "format": "date-time" },
+          "timestamp": { "type": "integer", "description": "Unix milliseconds" }
+        }
+      },
+      "RecentTrade": {
+        "type": "object",
+        "properties": {
+          "trade_id": { "type": "string" },
+          "market_id": { "type": "string" },
+          "token": { "type": "string" },
+          "price": { "type": "number", "format": "float" },
+          "size": { "type": "number", "format": "float" },
+          "side": { "type": "string", "enum": ["buy", "sell"] },
+          "timestamp": { "type": "string", "format": "date-time" },
+          "tx_hash": { "type": "string", "description": "Blockchain transaction hash (empty if not from on-chain event)" },
+          "maker": { "type": "string", "description": "Maker wallet address (empty if tx_hash unavailable)" },
+          "taker": { "type": "string", "description": "Taker wallet address (empty if tx_hash unavailable)" }
+        }
+      },
+      "RecentTradesResponse": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/RecentTrade" } },
+          "count": { "type": "integer" }
         }
       },
       "MarketStats": {

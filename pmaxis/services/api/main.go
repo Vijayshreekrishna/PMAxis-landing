@@ -28,6 +28,12 @@ var adminHTML []byte
 //go:embed register.html
 var registerHTML []byte
 
+//go:embed viz.html
+var vizHTML []byte
+
+//go:embed status.html
+var statusHTML []byte
+
 func main() {
 	svc := service.NewBaseService("api")
 
@@ -84,6 +90,11 @@ func main() {
 
 		// Public Routes
 		r.HandleFunc("/health", h.GetHealth).Methods("GET")
+		r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'")
+			w.Write(statusHTML)
+		}).Methods("GET")
 
 		// Metrics — gated behind DEBUG_TOKEN
 		r.Handle("/metrics", middleware.DebugAuth(promhttp.Handler()))
@@ -98,6 +109,21 @@ func main() {
 		// Real-time Kafka → WebSocket broadcaster
 		go ws.StartKafkaBroadcaster(ctx, hub, kafkaBrokers, svc.Logger)
 
+		// Background uptime recorder — runs every 5 minutes, stores to Redis
+		go func() {
+			uptimeTick := time.NewTicker(5 * time.Minute)
+			defer uptimeTick.Stop()
+			h.RecordUptimeSnapshot(ctx)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-uptimeTick.C:
+					h.RecordUptimeSnapshot(ctx)
+				}
+			}
+		}()
+
 		// API Docs
 		r.HandleFunc("/openapi.json", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
@@ -110,77 +136,55 @@ func main() {
 			w.Write([]byte(`<!DOCTYPE html>
 <html>
 <head>
-  <title>PMAxis API Docs</title>
+  <title>PMAxis — API Docs</title>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    body { margin: 0; }
-    #theme-bar {
-      position: fixed;
-      top: 12px;
-      right: 16px;
-      z-index: 99999;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(15,15,25,0.75);
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 10px;
-      padding: 6px 12px;
-      backdrop-filter: blur(10px);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 13px;
-      color: rgba(255,255,255,0.8);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0A0A0A; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
+    .docs-nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px; height: 68px;
+      background: #0A0A0A; border-bottom: 1px solid #1E1E1E;
+      position: sticky; top: 0; z-index: 99999;
     }
-    #theme-bar select {
-      background: transparent;
-      border: none;
-      color: rgba(255,255,255,0.9);
-      font-size: 13px;
-      cursor: pointer;
-      outline: none;
-      padding: 0 4px;
+    .docs-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .docs-brand-name { font-size: 16px; font-weight: 700; color: #fff; letter-spacing: -0.02em; }
+    .docs-brand-divider { width: 1px; height: 16px; background: #1E1E1E; margin: 0 4px; }
+    .docs-brand-sub { font-size: 13px; color: #A1A1AA; font-weight: 400; }
+    .docs-nav-links { display: flex; align-items: center; gap: 28px; }
+    .docs-nav-link { font-size: 13px; color: #A1A1AA; text-decoration: none; font-weight: 500; transition: color 0.15s; }
+    .docs-nav-link:hover { color: #fff; }
+    .docs-nav-btn {
+      font-size: 13px; font-weight: 600; color: #0A0A0A;
+      background: #00E676; border: none; border-radius: 8px;
+      padding: 9px 18px; cursor: pointer; text-decoration: none;
+      transition: opacity 0.15s;
     }
-    #theme-bar select option { background: #111; color: #fff; }
+    .docs-nav-btn:hover { opacity: 0.88; }
   </style>
 </head>
 <body>
-  <div id="theme-bar">
-    <span>🎨 Theme</span>
-    <select id="theme-select" onchange="applyTheme(this.value)">
-      <option value="deepSpace">Deep Space</option>
-      <option value="purple">Purple</option>
-      <option value="moon">Moon</option>
-      <option value="bluePlanet">Blue Planet</option>
-      <option value="saturn">Saturn</option>
-      <option value="solarized">Solarized</option>
-      <option value="default">Default</option>
-    </select>
-  </div>
-  <script id="api-reference" data-url="/openapi.json"></script>
-  <script>
-    var ROUNDED_CSS = [
-      '.scalar-card { border-radius: 14px !important; }',
-      '.scalar-button, button { border-radius: 8px !important; }',
-      'input, textarea, select { border-radius: 7px !important; }',
-      '.endpoint-details-card { border-radius: 12px !important; }',
-      '.scalar-api-client__send-button { border-radius: 8px !important; }',
-      'code, pre { border-radius: 8px !important; }',
-      '.tag-section { border-radius: 14px !important; }',
-    ].join('\n');
-    function buildConfig(theme) {
-      return JSON.stringify({ theme: theme, layout: 'modern', customCss: ROUNDED_CSS });
-    }
-    function applyTheme(theme) {
-      localStorage.setItem('pmaxis-docs-theme', theme);
-      location.reload();
-    }
-    var saved = localStorage.getItem('pmaxis-docs-theme') || 'deepSpace';
-    document.getElementById('theme-select').value = saved;
-    document.getElementById('api-reference').setAttribute('data-configuration', buildConfig(saved));
-  </script>
+  <nav class="docs-nav">
+    <a class="docs-brand" href="/">
+      <svg width="38" height="38" viewBox="0 0 803 795" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#FFFFFF" d="M719.962 114.503C724.439 116.738 746.095 136.885 751.202 141.275C743.13 152.558 727.925 169.756 718.52 180.14C667.116 237.986 604.881 285.207 535.329 319.136C528.842 322.253 501.635 334.541 495.686 335.719C493.671 334.794 493.692 334.098 492.165 332.003C481.767 318.552 471.393 311.209 457.07 302.886C532.805 280.515 608.565 231.922 664.325 176.745C684.543 156.739 701.958 136.391 719.962 114.503Z"/>
+        <path fill="#FFFFFF" d="M103.731 114.306C106.532 116.771 116.373 129.166 119.413 132.747C128.996 144.095 139.01 155.071 149.433 165.651C213.595 230.118 280.396 274.662 366.923 302.87C352.429 310.952 342.084 318.858 331.657 332.058L328.841 336.043C319.39 333.204 296.981 322.854 288.065 318.523C216.559 283.785 152.851 232.607 99.9718 173.495C90.9908 163.455 80.8168 152.054 72.5908 141.466C80.8318 133.892 95.1408 120.907 103.731 114.306Z"/>
+        <path fill="#FFFFFF" d="M500.639 448.854C510.914 451.537 533.17 462.09 542.691 466.637C603.572 495.713 657.966 537.098 703.779 586.511C719.932 603.934 737.715 624.431 751.412 643.924C743.385 651.277 729.34 662.024 720.529 669.194C717.837 667.836 711.304 658.002 708.901 655.026C699.702 643.633 690.268 632.508 680.354 621.743C622.903 558.485 550.473 510.682 469.721 482.728C482.46 472.687 492.344 462.846 500.639 448.854Z"/>
+        <path fill="#FFFFFF" d="M322.57 449.109C324.527 450.34 331.226 460.882 333.985 463.96C341.099 471.897 346.509 476.457 354.784 482.779C251.686 517.317 170.299 583.28 104.517 668.566L103.202 668.709C97.76 665.303 78.849 649.187 72.52 644.052C81.2 630.876 98.635 610.478 109.165 598.717C157.332 544.918 214.867 498.845 280.012 467.285C293.255 460.869 308.655 453.904 322.57 449.109Z"/>
+        <path fill="#00E676" d="M404.129 336.369C437.402 331.991 467.935 355.383 472.368 388.649C476.801 421.915 453.459 452.487 420.201 456.975C386.865 461.473 356.206 438.064 351.762 404.721C347.319 371.378 370.778 340.757 404.129 336.369Z"/>
+      </svg>
+      <span class="docs-brand-name">PMAxis</span>
+      <div class="docs-brand-divider"></div>
+      <span class="docs-brand-sub">API Reference</span>
+    </a>
+    <div class="docs-nav-links">
+      <a class="docs-nav-link" href="/viz">Explorer</a>
+      <a class="docs-nav-link" href="/status">Status</a>
+      <a class="docs-nav-btn" href="/register">Get API Key</a>
+    </div>
+  </nav>
+  <script id="api-reference" data-url="/openapi.json" data-configuration='{"theme":"deepSpace","layout":"modern"}'></script>
   <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
 </body>
 </html>`))
@@ -216,6 +220,27 @@ func main() {
 		admin.HandleFunc("/keys/{key}/activate", h.AdminActivateKey).Methods("POST")
 		admin.HandleFunc("/keys/{key}/reset", h.AdminResetUsage).Methods("POST")
 		admin.HandleFunc("/keys/{key}/usage", h.AdminGetUsage).Methods("GET")
+		admin.HandleFunc("/keys/{key}", h.AdminDeleteKey).Methods("DELETE")
+
+			// Data Explorer — public, no auth
+			r.HandleFunc("/viz", func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:")
+				w.Write(vizHTML)
+			}).Methods("GET")
+
+			// Public read-only data routes for /viz page (no API key required)
+			vizData := r.PathPrefix("/viz/data").Subrouter()
+			vizData.Use(middleware.CORS)
+			vizData.HandleFunc("/stats", h.GetPlatformStats).Methods("GET")
+			vizData.HandleFunc("/trades/recent", h.GetRecentTrades).Methods("GET")
+			vizData.HandleFunc("/markets/top", h.GetTopMarkets).Methods("GET")
+			vizData.HandleFunc("/markets/{id}/candles", h.GetCandles).Methods("GET")
+			vizData.HandleFunc("/markets/{id}/orderbook", h.GetOrderbook).Methods("GET")
+			vizData.HandleFunc("/orderbooks/available", h.GetAvailableOrderbooks).Methods("GET")
+			vizData.HandleFunc("/uptime", h.GetUptimeHistory).Methods("GET")
+			vizData.HandleFunc("/categories", h.GetCategories).Methods("GET")
+			vizData.HandleFunc("/tags", h.GetTags).Methods("GET")
 
 		// Developer Registration Page — public
 		r.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
@@ -256,6 +281,8 @@ func main() {
 		api.HandleFunc("/markets/{id}/signals", h.GetSignalsByMarket).Methods("GET")
 
 		// Wallet Activity Routes
+		api.HandleFunc("/stats", h.GetPlatformStats).Methods("GET")
+		api.HandleFunc("/trades/recent", h.GetRecentTrades).Methods("GET")
 		api.HandleFunc("/wallets/watch", h.WatchWallet).Methods("POST")
 		api.HandleFunc("/wallets/watched", h.GetWatchedWallets).Methods("GET")
 		api.HandleFunc("/wallets/{address}/watch", h.UnwatchWallet).Methods("DELETE")

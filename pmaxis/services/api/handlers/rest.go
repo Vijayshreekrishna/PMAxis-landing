@@ -29,15 +29,192 @@ type APIHandler struct {
 	ClobURL    string
 }
 
-func (h *APIHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
-	resp := map[string]interface{}{
-		"status":    "ok",
-		"service":   "pmaxis-api",
-		"project":   "PMAxis Trading Platform",
-		"instance":  "Production-VPS",
-		"timestamp": time.Now().Unix(),
+// ComponentStatus holds the result of a single component health check.
+type ComponentStatus struct {
+	Name    string `json:"name"`
+	Slug    string `json:"slug"`
+	Status  string `json:"status"`
+	Latency int64  `json:"latency_ms,omitempty"`
+	Detail  string `json:"detail,omitempty"`
+}
+
+func (h *APIHandler) checkComponents(ctx context.Context) []ComponentStatus {
+	check := func(name, slug string, fn func() error) ComponentStatus {
+		start := time.Now()
+		err := fn()
+		ms := time.Since(start).Milliseconds()
+		if err != nil {
+			return ComponentStatus{Name: name, Slug: slug, Status: "degraded", Latency: ms, Detail: err.Error()}
+		}
+		return ComponentStatus{Name: name, Slug: slug, Status: "operational", Latency: ms}
 	}
-	json.NewEncoder(w).Encode(resp)
+
+	pipeline := func() ComponentStatus {
+		var lastTrade time.Time
+		rows, err := h.ClickHouse.Query(ctx, "SELECT max(timestamp) FROM trades")
+		if err == nil {
+			if s, ok := rows.(interface {
+				Next() bool
+				Scan(...interface{}) error
+			}); ok && s.Next() {
+				s.Scan(&lastTrade)
+			}
+			if c, ok := rows.(interface{ Close() error }); ok { c.Close() }
+		}
+		if lastTrade.IsZero() {
+			return ComponentStatus{Name: "Data Pipeline", Slug: "pipeline", Status: "unknown"}
+		}
+		age := time.Since(lastTrade)
+		status := "operational"
+		if age > 10*time.Minute { status = "degraded" }
+		if age > 60*time.Minute { status = "outage" }
+		return ComponentStatus{Name: "Data Pipeline", Slug: "pipeline", Status: status, Detail: "Last trade " + fmtAgo(age)}
+	}()
+
+	return []ComponentStatus{
+		check("API", "api", func() error { return nil }),
+		check("Redis Cache", "redis", func() error { return h.Redis.Ping(ctx) }),
+		check("ClickHouse", "clickhouse", func() error {
+			rows, err := h.ClickHouse.Query(ctx, "SELECT 1")
+			if err != nil { return err }
+			if c, ok := rows.(interface{ Close() error }); ok { c.Close() }
+			return nil
+		}),
+		check("Postgres", "postgres", func() error { return h.Postgres.Ping(ctx) }),
+		pipeline,
+	}
+}
+
+func (h *APIHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	components := h.checkComponents(ctx)
+
+	overall := "operational"
+	for _, c := range components {
+		if c.Status == "outage" { overall = "outage"; break }
+		if c.Status == "degraded" && overall != "outage" { overall = "degraded" }
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":     overall,
+		"service":    "pmaxis-api",
+		"timestamp":  time.Now().Unix(),
+		"components": components,
+	})
+}
+
+// RecordUptimeSnapshot is called every 5 minutes by the background goroutine.
+// It stores a 1 (up) or 0 (down) entry per component in a Redis sorted set,
+// pruning entries older than 90 days.
+func (h *APIHandler) RecordUptimeSnapshot(ctx context.Context) {
+	components := h.checkComponents(ctx)
+	now := time.Now()
+	ts := now.Unix()
+	cutoff := now.Add(-90 * 24 * time.Hour).Unix()
+
+	for _, c := range components {
+		key := "pmaxis:uptime:" + c.Slug
+		val := "0"
+		if c.Status == "operational" { val = "1" }
+		member := fmt.Sprintf("%d:%s", ts, val)
+
+		h.Redis.ZAdd(ctx, key, float64(ts), member)
+		h.Redis.ZRemRangeByScore(ctx, key, "-inf", fmt.Sprintf("%d", cutoff))
+	}
+}
+
+// GetUptimeHistory returns 90 days of daily uptime % per component.
+func (h *APIHandler) GetUptimeHistory(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	slugs := []struct{ slug, name string }{
+		{"api", "API"},
+		{"redis", "Redis Cache"},
+		{"clickhouse", "ClickHouse"},
+		{"postgres", "Postgres"},
+		{"pipeline", "Data Pipeline"},
+	}
+
+	type dayBucket struct {
+		Date    string  `json:"date"`
+		Uptime  float64 `json:"uptime_pct"`
+		Total   int     `json:"total"`
+		Up      int     `json:"up"`
+	}
+	type compHistory struct {
+		Name string      `json:"name"`
+		Slug string      `json:"slug"`
+		Days []dayBucket `json:"days"`
+		Uptime90d float64 `json:"uptime_90d"`
+	}
+
+	now := time.Now().UTC()
+	cutoff := now.Add(-90 * 24 * time.Hour).Unix()
+	results := make([]compHistory, 0, len(slugs))
+
+	for _, s := range slugs {
+		key := "pmaxis:uptime:" + s.slug
+		members, err := h.Redis.ZRangeByScore(ctx, key, fmt.Sprintf("%d", cutoff), "+inf")
+		if err != nil {
+			members = []string{}
+		}
+
+		// bucket by UTC date
+		buckets := make(map[string]*dayBucket)
+		for _, m := range members {
+			parts := strings.SplitN(m, ":", 2)
+			if len(parts) != 2 { continue }
+			var ts int64
+			fmt.Sscanf(parts[0], "%d", &ts)
+			t := time.Unix(ts, 0).UTC()
+			date := t.Format("2006-01-02")
+			if _, ok := buckets[date]; !ok {
+				buckets[date] = &dayBucket{Date: date}
+			}
+			buckets[date].Total++
+			if parts[1] == "1" { buckets[date].Up++ }
+		}
+
+		// fill all 90 days (even empty ones)
+		days := make([]dayBucket, 0, 90)
+		totalUp, totalChecks := 0, 0
+		for i := 89; i >= 0; i-- {
+			date := now.AddDate(0, 0, -i).Format("2006-01-02")
+			if b, ok := buckets[date]; ok {
+				pct := 0.0
+				if b.Total > 0 { pct = float64(b.Up) / float64(b.Total) * 100 }
+				b.Uptime = pct
+				days = append(days, *b)
+				totalUp += b.Up
+				totalChecks += b.Total
+			} else {
+				days = append(days, dayBucket{Date: date, Uptime: -1})
+			}
+		}
+
+		uptime90d := -1.0
+		if totalChecks > 0 { uptime90d = float64(totalUp) / float64(totalChecks) * 100 }
+
+		results = append(results, compHistory{
+			Name:      s.name,
+			Slug:      s.slug,
+			Days:      days,
+			Uptime90d: uptime90d,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"components": results,
+		"generated":  now.Unix(),
+	})
+}
+
+func fmtAgo(d time.Duration) string {
+	if d < time.Minute { return fmt.Sprintf("%ds ago", int(d.Seconds())) }
+	if d < time.Hour   { return fmt.Sprintf("%dm ago", int(d.Minutes())) }
+	return fmt.Sprintf("%dh ago", int(d.Hours()))
 }
 
 func (h *APIHandler) GetMarkets(w http.ResponseWriter, r *http.Request) {
@@ -430,6 +607,57 @@ func (h *APIHandler) GetOrderbook(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(data))
+}
+
+func (h *APIHandler) GetAvailableOrderbooks(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var cursor uint64
+	var marketIDs []string
+	for {
+		keys, next, err := h.Redis.Scan(ctx, cursor, "pmaxis:orderbook:*", 100).Result()
+		if err != nil {
+			break
+		}
+		for _, key := range keys {
+			id := strings.TrimPrefix(key, "pmaxis:orderbook:")
+			marketIDs = append(marketIDs, id)
+		}
+		cursor = next
+		if cursor == 0 {
+			break
+		}
+	}
+
+	if marketIDs == nil {
+		marketIDs = []string{}
+	}
+
+	type result struct {
+		MarketID string `json:"market_id"`
+		Title    string `json:"title,omitempty"`
+	}
+
+	limit := 20
+	if len(marketIDs) > limit {
+		marketIDs = marketIDs[:limit]
+	}
+
+	results := make([]result, 0, len(marketIDs))
+	for _, id := range marketIDs {
+		item := result{MarketID: id}
+		meta := h.getMarketMetadata(ctx, id)
+		if t := fallback(meta["title"], meta["question"]); t != "" {
+			item.Title = t
+		}
+		results = append(results, item)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"markets": results,
+		"count":   len(results),
+	})
 }
 
 func (h *APIHandler) GetPrice(w http.ResponseWriter, r *http.Request) {
@@ -1314,6 +1542,252 @@ func (h *APIHandler) GetMarketSummary(w http.ResponseWriter, r *http.Request) {
 	h.cacheSetJSON(ctx, cacheKey, summary, 10*time.Second)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(summary)
+}
+
+// GetPlatformStats returns platform-wide aggregate numbers for the stats bar.
+// GET /v1/stats — cached 30s
+func (h *APIHandler) GetPlatformStats(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	cacheKey := "cache:platform:stats"
+	var cached map[string]interface{}
+	if h.cacheGetJSON(ctx, cacheKey, &cached) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Cache", "HIT")
+		json.NewEncoder(w).Encode(cached)
+		return
+	}
+
+	type result struct {
+		key string
+		val interface{}
+		err error
+	}
+	ch := make(chan result, 5)
+
+	// Total markets
+	go func() {
+		rows, err := h.ClickHouse.Query(ctx, `SELECT count(DISTINCT market_id) FROM market_metadata`)
+		if err != nil {
+			ch <- result{"total_markets", 0, err}
+			return
+		}
+		defer func() {
+			if c, ok := rows.(interface{ Close() error }); ok {
+				c.Close()
+			}
+		}()
+		var n uint64
+		if s, ok := rows.(interface {
+			Next() bool
+			Scan(...interface{}) error
+		}); ok && s.Next() {
+			s.Scan(&n)
+		}
+		ch <- result{"total_markets", n, nil}
+	}()
+
+	// Active markets
+	go func() {
+		rows, err := h.ClickHouse.Query(ctx, `SELECT count(DISTINCT market_id) FROM market_metadata WHERE upper(status) = 'ACTIVE'`)
+		if err != nil {
+			ch <- result{"active_markets", 0, err}
+			return
+		}
+		defer func() {
+			if c, ok := rows.(interface{ Close() error }); ok {
+				c.Close()
+			}
+		}()
+		var n uint64
+		if s, ok := rows.(interface {
+			Next() bool
+			Scan(...interface{}) error
+		}); ok && s.Next() {
+			s.Scan(&n)
+		}
+		ch <- result{"active_markets", n, nil}
+	}()
+
+	// 24h volume + trade count
+	go func() {
+		rows, err := h.ClickHouse.Query(ctx, `
+			SELECT sum(volume), sum(trade_count)
+			FROM price_history_1m
+			WHERE timestamp >= now() - INTERVAL 24 HOUR
+		`)
+		if err != nil {
+			ch <- result{"24h", map[string]interface{}{"volume_24h": 0, "trades_24h": 0}, err}
+			return
+		}
+		defer func() {
+			if c, ok := rows.(interface{ Close() error }); ok {
+				c.Close()
+			}
+		}()
+		var vol float64
+		var trades uint64
+		if s, ok := rows.(interface {
+			Next() bool
+			Scan(...interface{}) error
+		}); ok && s.Next() {
+			s.Scan(&vol, &trades)
+		}
+		ch <- result{"24h", map[string]interface{}{"volume_24h": vol, "trades_24h": trades}, nil}
+	}()
+
+	// Total onchain trades
+	go func() {
+		rows, err := h.ClickHouse.Query(ctx, `SELECT count() FROM onchain_trades`)
+		if err != nil {
+			ch <- result{"total_onchain_trades", 0, err}
+			return
+		}
+		defer func() {
+			if c, ok := rows.(interface{ Close() error }); ok {
+				c.Close()
+			}
+		}()
+		var n uint64
+		if s, ok := rows.(interface {
+			Next() bool
+			Scan(...interface{}) error
+		}); ok && s.Next() {
+			s.Scan(&n)
+		}
+		ch <- result{"total_onchain_trades", n, nil}
+	}()
+
+	// Last ingestion timestamp
+	go func() {
+		rows, err := h.ClickHouse.Query(ctx, `SELECT max(timestamp) FROM trades`)
+		if err != nil {
+			ch <- result{"last_trade_at", nil, err}
+			return
+		}
+		defer func() {
+			if c, ok := rows.(interface{ Close() error }); ok {
+				c.Close()
+			}
+		}()
+		var ts time.Time
+		if s, ok := rows.(interface {
+			Next() bool
+			Scan(...interface{}) error
+		}); ok && s.Next() {
+			s.Scan(&ts)
+		}
+		ch <- result{"last_trade_at", ts, nil}
+	}()
+
+	stats := map[string]interface{}{
+		"total_markets":       0,
+		"active_markets":      0,
+		"volume_24h":          0,
+		"trades_24h":          0,
+		"total_onchain_trades": 0,
+		"last_trade_at":       nil,
+		"timestamp":           time.Now().UnixMilli(),
+	}
+
+	for i := 0; i < 5; i++ {
+		r := <-ch
+		switch r.key {
+		case "24h":
+			if m, ok := r.val.(map[string]interface{}); ok {
+				stats["volume_24h"] = m["volume_24h"]
+				stats["trades_24h"] = m["trades_24h"]
+			}
+		default:
+			stats[r.key] = r.val
+		}
+	}
+
+	h.cacheSetJSON(ctx, cacheKey, stats, 30*time.Second)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}
+
+// GetRecentTrades returns the latest trades with wallet addresses where available.
+// Joins trades (price/size/side) with onchain_trades (maker/taker) on tx_hash.
+// GET /v1/trades/recent?limit=50&market_id=<optional>
+func (h *APIHandler) GetRecentTrades(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	limit := parseLimit(getQuery(r, "limit", ""), 50, 500)
+	marketID := strings.TrimSpace(getQuery(r, "market_id", ""))
+
+	query := `
+		SELECT
+			t.trade_id,
+			t.market_id,
+			t.token,
+			t.price,
+			t.size,
+			t.side,
+			t.timestamp,
+			t.tx_hash,
+			o.maker,
+			o.taker
+		FROM trades t
+		LEFT JOIN onchain_trades o ON t.tx_hash != '' AND t.tx_hash = o.tx_hash
+	`
+	var args []interface{}
+	if marketID != "" {
+		query += " WHERE t.market_id = ?"
+		args = append(args, marketID)
+	}
+	query += " ORDER BY t.timestamp DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := h.ClickHouse.Query(ctx, query, args...)
+	if err != nil {
+		h.Logger.Error("recent trades query failed", "error", err)
+		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
+		return
+	}
+	defer func() {
+		if closer, ok := rows.(interface{ Close() error }); ok {
+			closer.Close()
+		}
+	}()
+
+	type recentTrade struct {
+		TradeID   string    `json:"trade_id"`
+		MarketID  string    `json:"market_id"`
+		Token     string    `json:"token"`
+		Price     float64   `json:"price"`
+		Size      float64   `json:"size"`
+		Side      string    `json:"side"`
+		Timestamp time.Time `json:"timestamp"`
+		TxHash    string    `json:"tx_hash,omitempty"`
+		Maker     string    `json:"maker,omitempty"`
+		Taker     string    `json:"taker,omitempty"`
+	}
+
+	results := []recentTrade{}
+	if sqlRows, ok := rows.(interface {
+		Next() bool
+		Scan(dest ...interface{}) error
+	}); ok {
+		for sqlRows.Next() {
+			var row recentTrade
+			if err := sqlRows.Scan(
+				&row.TradeID, &row.MarketID, &row.Token,
+				&row.Price, &row.Size, &row.Side, &row.Timestamp,
+				&row.TxHash, &row.Maker, &row.Taker,
+			); err != nil {
+				h.Logger.Error("recent trades scan failed", "error", err)
+				continue
+			}
+			results = append(results, row)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"data":  results,
+		"count": len(results),
+	})
 }
 
 func toFloat(v interface{}) float64 {

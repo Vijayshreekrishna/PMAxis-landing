@@ -194,12 +194,14 @@ func ensureSchemas(ctx context.Context, ch clickhouse.Interface, log logger.Inte
 			price       Float64,
 			size        Float64,
 			side        LowCardinality(String),
-			timestamp   DateTime64(3)
+			timestamp   DateTime64(3),
+			tx_hash     String DEFAULT ''
 		) ENGINE = MergeTree()
 		PARTITION BY toDate(timestamp)
 		ORDER BY (market_id, timestamp)
 		TTL timestamp + INTERVAL 7 DAY;
 	`)
+	ch.Exec(ctx, `ALTER TABLE trades ADD COLUMN IF NOT EXISTS tx_hash String DEFAULT ''`)
 
 	// Market metadata (Permanent)
 	log.Info("checking table", "name", "market_metadata")
@@ -387,7 +389,11 @@ func processWebsocketEvent(ctx context.Context, ch clickhouse.Interface, rdb red
 			if tradeTime.IsZero() {
 				tradeTime = time.Now().UTC()
 			}
-			tradeID := getString(change, "hash", "trade_id")
+			txHash := getString(change, "hash")
+			tradeID := txHash
+			if tradeID == "" {
+				tradeID = getString(change, "trade_id")
+			}
 			if tradeID == "" {
 				tsStr := fmt.Sprintf("%d", tradeTime.UnixNano())
 				priceStr := fmt.Sprintf("%v", price)
@@ -408,8 +414,8 @@ func processWebsocketEvent(ctx context.Context, ch clickhouse.Interface, rdb red
 			p.Publish(ctx, marketID, trade)
 
 			// Insert into dedicated trades table
-			ch.Exec(ctx, `INSERT INTO trades (trade_id, market_id, token, price, size, side, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-				trade.TradeID, trade.MarketID, trade.Token, trade.Price, trade.Size, trade.Side, trade.Timestamp)
+			ch.Exec(ctx, `INSERT INTO trades (trade_id, market_id, token, price, size, side, timestamp, tx_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+				trade.TradeID, trade.MarketID, trade.Token, trade.Price, trade.Size, trade.Side, trade.Timestamp, txHash)
 
 			tradePayload, _ := json.Marshal(trade)
 			onNormalized(schemas.NormalizedEvent{
@@ -435,6 +441,7 @@ func processWebsocketEvent(ctx context.Context, ch clickhouse.Interface, rdb red
 		priceStr := fmt.Sprintf("%v", price)
 		sizeStr := fmt.Sprintf("%v", size)
 
+		wsTxHash := getString(payload, "hash")
 		trade := schemas.TradeEvent{
 			TradeID:   crypto.GenerateEventID(marketID, tsStr, priceStr, sizeStr, "ws"),
 			MarketID:  marketID,
@@ -448,8 +455,8 @@ func processWebsocketEvent(ctx context.Context, ch clickhouse.Interface, rdb red
 		p.Publish(ctx, marketID, trade)
 
 		// Insert into dedicated trades table
-		ch.Exec(ctx, `INSERT INTO trades (trade_id, market_id, token, price, size, side, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			trade.TradeID, trade.MarketID, trade.Token, trade.Price, trade.Size, trade.Side, trade.Timestamp)
+		ch.Exec(ctx, `INSERT INTO trades (trade_id, market_id, token, price, size, side, timestamp, tx_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			trade.TradeID, trade.MarketID, trade.Token, trade.Price, trade.Size, trade.Side, trade.Timestamp, wsTxHash)
 
 		onNormalized(schemas.NormalizedEvent{
 			EventID: trade.TradeID, MarketID: marketID, EventType: "pmaxis.trades", Data: raw.Payload, Timestamp: ts,

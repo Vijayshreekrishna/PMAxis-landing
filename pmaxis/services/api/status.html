@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>PMAxis — Status</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:  #00E676;
+      --purple: #8B5CF6;
+      --red:    #FF4444;
+      --yellow: #F59E0B;
+    }
+
+    [data-theme="dark"] {
+      --bg:       #0A0A0A;
+      --surface:  #111111;
+      --surface2: #161616;
+      --border:   #1E1E1E;
+      --text:     #FFFFFF;
+      --muted:    #A1A1AA;
+      --logo-fill: #FFFFFF;
+      --shadow:   rgba(0,0,0,0.4);
+    }
+    [data-theme="light"] {
+      --bg:       #FFFFFF;
+      --surface:  #F7F7F7;
+      --surface2: #EFEFEF;
+      --border:   #E5E5E5;
+      --text:     #0A0A0A;
+      --muted:    #71717A;
+      --logo-fill: #0A0A0A;
+      --shadow:   rgba(0,0,0,0.08);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Space Grotesk', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    /* ── Header ── */
+    header { border-bottom: 1px solid var(--border); background: var(--bg); }
+    .container { max-width: 960px; margin: 0 auto; padding: 0 40px; width: 100%; }
+    .nav { display: flex; align-items: center; justify-content: space-between; height: 68px; }
+
+    .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+    .brand-logo { width: 38px; height: 38px; flex-shrink: 0; }
+    .logo-path { fill: var(--logo-fill); transition: fill 0.2s; }
+    .logo-center { fill: #00E676; }
+    .brand-name { font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+    .brand-divider { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
+    .brand-sub { font-size: 13px; color: var(--muted); font-weight: 400; }
+
+    .nav-right { display: flex; align-items: center; gap: 24px; }
+    .nav-link { font-size: 13px; color: var(--muted); text-decoration: none; font-weight: 500; transition: color 0.15s; }
+    .nav-link:hover { color: var(--text); }
+
+    .theme-toggle {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+    .theme-toggle:hover { border-color: var(--green); color: var(--text); }
+
+    /* ── Main ── */
+    main { flex: 1; padding: 60px 0 100px; }
+
+    /* ── Overall ── */
+    .overall {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 36px 40px;
+      margin-bottom: 52px;
+      display: flex; align-items: center; gap: 22px;
+      background: var(--surface);
+      position: relative; overflow: hidden;
+    }
+    .overall.operational::after { content:''; position:absolute; left:0;top:0;bottom:0; width:3px; background:var(--green); border-radius:14px 0 0 14px; }
+    .overall.degraded::after   { content:''; position:absolute; left:0;top:0;bottom:0; width:3px; background:var(--yellow); border-radius:14px 0 0 14px; }
+    .overall.outage::after     { content:''; position:absolute; left:0;top:0;bottom:0; width:3px; background:var(--red); border-radius:14px 0 0 14px; }
+
+    .overall-pulse { width:14px;height:14px;border-radius:50%;flex-shrink:0; }
+    .overall-pulse.operational { background:var(--green); animation:ping 2s ease-in-out infinite; }
+    .overall-pulse.degraded    { background:var(--yellow); }
+    .overall-pulse.outage      { background:var(--red); }
+    .overall-pulse.loading     { background:var(--border); animation:blink 1.2s infinite; }
+
+    @keyframes ping  { 0%{box-shadow:0 0 0 0 rgba(0,230,118,0.5)} 70%{box-shadow:0 0 0 8px rgba(0,230,118,0)} 100%{box-shadow:0 0 0 0 rgba(0,230,118,0)} }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    .overall-body { flex:1; }
+    .overall-title { font-size:22px; font-weight:700; letter-spacing:-0.02em; }
+    .overall-sub   { font-size:14px; color:var(--muted); margin-top:4px; }
+    .overall-meta  { font-size:12px; color:var(--muted); text-align:right; line-height:1.8; flex-shrink:0; }
+
+    /* ── Section label ── */
+    .section-label { font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:16px; }
+
+    /* ── Component cards ── */
+    .comp-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden; margin-bottom:12px; }
+    .comp-head { display:flex;align-items:center;padding:22px 28px 18px;gap:12px; }
+    .comp-dot { width:8px;height:8px;border-radius:50%;flex-shrink:0; }
+    .comp-dot.operational { background:var(--green);box-shadow:0 0 6px rgba(0,230,118,0.7); }
+    .comp-dot.degraded    { background:var(--yellow);box-shadow:0 0 6px rgba(245,158,11,0.7); }
+    .comp-dot.outage      { background:var(--red);box-shadow:0 0 6px rgba(255,68,68,0.7); }
+    .comp-dot.unknown     { background:var(--muted); }
+    .comp-dot.loading     { background:var(--border);animation:blink 1.2s infinite; }
+    .comp-name    { font-size:15px;font-weight:600;flex:1; }
+    .comp-detail  { font-size:13px;color:var(--muted); }
+    .comp-uptime-pct { font-size:12px;font-weight:600;font-variant-numeric:tabular-nums; }
+    .comp-uptime-pct.operational { color:var(--green); }
+    .comp-uptime-pct.degraded    { color:var(--yellow); }
+    .comp-uptime-pct.outage      { color:var(--red); }
+    .comp-uptime-pct.unknown     { color:var(--muted); }
+    .comp-status-label { font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;min-width:90px;text-align:right; }
+    .comp-status-label.operational { color:var(--green); }
+    .comp-status-label.degraded    { color:var(--yellow); }
+    .comp-status-label.outage      { color:var(--red); }
+    .comp-status-label.unknown     { color:var(--muted); }
+
+    /* ── Timeline ── */
+    .timeline { padding:0 28px 20px; }
+    .bars { display:flex;gap:2px;align-items:flex-end;height:40px; }
+    .bar { flex:1;border-radius:2px;cursor:pointer;transition:filter 0.15s,transform 0.1s;position:relative;min-width:2px; }
+    .bar:hover { filter:brightness(1.3);transform:scaleY(1.1);transform-origin:bottom; }
+    .bar.up      { background:var(--green);height:100%;opacity:0.85; }
+    .bar.down    { background:var(--red);height:100%; }
+    .bar.partial { background:var(--yellow);height:100%;opacity:0.9; }
+    .bar.no-data { background:var(--border);height:60%; }
+    .timeline-footer { display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:6px; }
+
+    /* ── Tooltip ── */
+    .tooltip { position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;pointer-events:none;z-index:9999;display:none;white-space:nowrap;box-shadow:0 4px 20px var(--shadow); }
+    .tooltip.visible { display:block; }
+    .tooltip-date { font-weight:600;margin-bottom:2px; }
+    .tooltip-val  { color:var(--muted); }
+
+    /* ── Links ── */
+    .links { display:flex;gap:10px;flex-wrap:wrap; }
+    .link-btn { display:inline-flex;align-items:center;gap:8px;padding:12px 22px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;font-weight:500;text-decoration:none;font-family:'Space Grotesk',sans-serif;transition:border-color 0.15s,background 0.15s,color 0.15s; }
+    .link-btn:hover { border-color:var(--green);color:var(--green);background:rgba(0,230,118,0.04); }
+
+    /* ── Footer ── */
+    footer { border-top:1px solid var(--border);padding:20px 0; }
+    .footer-inner { display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--muted); }
+    .live-dot { display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);margin-right:6px;box-shadow:0 0 6px rgba(0,230,118,0.8);animation:ping 2s ease-in-out infinite; }
+  </style>
+</head>
+<body>
+
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-date" id="tt-date"></div>
+  <div class="tooltip-val"  id="tt-val"></div>
+</div>
+
+<header>
+  <div class="container">
+    <nav class="nav">
+      <a class="brand" href="/status">
+        <svg class="brand-logo" width="38" height="38" viewBox="0 0 803 795" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path class="logo-path" d="M719.962 114.503C724.439 116.738 746.095 136.885 751.202 141.275C743.13 152.558 727.925 169.756 718.52 180.14C667.116 237.986 604.881 285.207 535.329 319.136C528.842 322.253 501.635 334.541 495.686 335.719C493.671 334.794 493.692 334.098 492.165 332.003C481.767 318.552 471.393 311.209 457.07 302.886C532.805 280.515 608.565 231.922 664.325 176.745C684.543 156.739 701.958 136.391 719.962 114.503Z"/>
+          <path class="logo-path" d="M103.731 114.306C106.532 116.771 116.373 129.166 119.413 132.747C128.996 144.095 139.01 155.071 149.433 165.651C213.595 230.118 280.396 274.662 366.923 302.87C352.429 310.952 342.084 318.858 331.657 332.058L328.841 336.043C319.39 333.204 296.981 322.854 288.065 318.523C216.559 283.785 152.851 232.607 99.9718 173.495C90.9908 163.455 80.8168 152.054 72.5908 141.466C80.8318 133.892 95.1408 120.907 103.731 114.306Z"/>
+          <path class="logo-path" d="M500.639 448.854C510.914 451.537 533.17 462.09 542.691 466.637C603.572 495.713 657.966 537.098 703.779 586.511C719.932 603.934 737.715 624.431 751.412 643.924C743.385 651.277 729.34 662.024 720.529 669.194C717.837 667.836 711.304 658.002 708.901 655.026C699.702 643.633 690.268 632.508 680.354 621.743C622.903 558.485 550.473 510.682 469.721 482.728C482.46 472.687 492.344 462.846 500.639 448.854Z"/>
+          <path class="logo-path" d="M322.57 449.109C324.527 450.34 331.226 460.882 333.985 463.96C341.099 471.897 346.509 476.457 354.784 482.779C251.686 517.317 170.299 583.28 104.517 668.566L103.202 668.709C97.76 665.303 78.849 649.187 72.52 644.052C81.2 630.876 98.635 610.478 109.165 598.717C157.332 544.918 214.867 498.845 280.012 467.285C293.255 460.869 308.655 453.904 322.57 449.109Z"/>
+          <path class="logo-center" d="M404.129 336.369C437.402 331.991 467.935 355.383 472.368 388.649C476.801 421.915 453.459 452.487 420.201 456.975C386.865 461.473 356.206 438.064 351.762 404.721C347.319 371.378 370.778 340.757 404.129 336.369Z"/>
+        </svg>
+        <span class="brand-name">PMAxis</span>
+        <div class="brand-divider"></div>
+        <span class="brand-sub">Status</span>
+      </a>
+      <div class="nav-right">
+        <a class="nav-link" href="/docs">Docs</a>
+        <a class="nav-link" href="/viz">Explorer</a>
+        <a class="nav-link" href="/register">Get API Key</a>
+        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode" id="theme-btn">
+          <svg id="theme-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="container">
+    <div class="overall loading" id="overall">
+      <div class="overall-pulse loading" id="overall-pulse"></div>
+      <div class="overall-body">
+        <div class="overall-title" id="overall-title">Checking systems…</div>
+        <div class="overall-sub"   id="overall-sub">Fetching status</div>
+      </div>
+      <div class="overall-meta" id="overall-meta"></div>
+    </div>
+
+    <div class="section-label">Components</div>
+    <div id="components">
+      <div class="comp-card">
+        <div class="comp-head">
+          <div class="comp-dot loading"></div>
+          <div class="comp-name" style="color:var(--muted)">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-label" style="margin-top:40px">Resources</div>
+    <div class="links">
+      <a class="link-btn" href="/docs">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        API Docs
+      </a>
+      <a class="link-btn" href="/viz">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Data Explorer
+      </a>
+      <a class="link-btn" href="/register">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Get API Key
+      </a>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <span><span class="live-dot"></span>PMAxis Trading Platform</span>
+      <span id="footer-time"></span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  /* ── Theme ── */
+  const ICON_MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+  const ICON_SUN  = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    document.getElementById('theme-icon').innerHTML = t === 'dark' ? ICON_MOON : ICON_SUN;
+    localStorage.setItem('pmaxis-theme', t);
+  }
+  function toggleTheme() {
+    applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  }
+  applyTheme(localStorage.getItem('pmaxis-theme') || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'));
+
+  /* ── Status ── */
+  const OVERALL_LABELS = { operational:'All Systems Operational', degraded:'Partial System Degradation', outage:'Major Outage', unknown:'Status Unknown' };
+  const STATUS_LABELS  = { operational:'Operational', degraded:'Degraded', outage:'Outage', unknown:'Unknown' };
+
+  function el(id) { return document.getElementById(id); }
+
+  async function fetchHealth() {
+    try { const r = await fetch('/health'); if (!r.ok) throw 0; return r.json(); } catch { return null; }
+  }
+  async function fetchUptime() {
+    try { const r = await fetch('/viz/data/uptime'); if (!r.ok) throw 0; return r.json(); } catch { return null; }
+  }
+
+  function renderOverall(data) {
+    const now = new Date();
+    const s = data ? (data.status || 'unknown') : 'outage';
+    el('overall').className = 'overall ' + s;
+    el('overall-pulse').className = 'overall-pulse ' + s;
+    el('overall-title').textContent = data ? (OVERALL_LABELS[s] || 'Unknown') : 'Unable to Reach API';
+    el('overall-sub').textContent = data ? 'PMAxis API · Production · Auto-refreshes every 30s' : 'Status check failed';
+    el('overall-meta').innerHTML = 'Last checked<br><strong>' + now.toLocaleTimeString() + '</strong>';
+  }
+
+  function barClass(u) { if (u < 0) return 'no-data'; if (u >= 99) return 'up'; if (u >= 90) return 'partial'; return 'down'; }
+
+  function attachTooltip(bar, date, uptime) {
+    const tt = el('tooltip');
+    bar.addEventListener('mouseenter', () => {
+      el('tt-date').textContent = new Date(date + 'T00:00:00').toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'});
+      el('tt-val').textContent  = uptime < 0 ? 'No data' : uptime.toFixed(2) + '% uptime';
+      tt.classList.add('visible');
+    });
+    bar.addEventListener('mousemove', e => { tt.style.left = (e.clientX+12)+'px'; tt.style.top = (e.clientY-36)+'px'; });
+    bar.addEventListener('mouseleave', () => tt.classList.remove('visible'));
+  }
+
+  function renderComponents(health, uptime) {
+    const comps = health ? (health.components || []) : [];
+    const uptimeMap = {};
+    if (uptime && uptime.components) uptime.components.forEach(c => { uptimeMap[c.slug] = c; });
+
+    const rows = comps.length ? comps : [
+      {name:'API',slug:'api',status:'unknown'},{name:'Redis Cache',slug:'redis',status:'unknown'},
+      {name:'ClickHouse',slug:'clickhouse',status:'unknown'},{name:'Postgres',slug:'postgres',status:'unknown'},
+      {name:'Data Pipeline',slug:'pipeline',status:'unknown'},
+    ];
+
+    el('components').innerHTML = rows.map(c => {
+      const hist = uptimeMap[c.slug];
+      const days = hist ? hist.days : [];
+      const u90  = hist ? hist.uptime_90d : -1;
+      const s    = c.status || 'unknown';
+      return `<div class="comp-card">
+        <div class="comp-head">
+          <div class="comp-dot ${s}"></div>
+          <div class="comp-name">${c.name}</div>
+          ${c.detail ? `<div class="comp-detail">${c.detail}</div>` : ''}
+          <div class="comp-uptime-pct ${s}">${u90 >= 0 ? u90.toFixed(2)+'%' : '—'}</div>
+          <div class="comp-status-label ${s}">${STATUS_LABELS[s] || s}</div>
+        </div>
+        ${days.length ? `<div class="timeline">
+          <div class="bars" id="bars-${c.slug}">${days.map(d=>`<div class="bar ${barClass(d.uptime_pct)}" data-date="${d.date}" data-u="${d.uptime_pct}"></div>`).join('')}</div>
+          <div class="timeline-footer"><span>90 days ago</span><span>Today</span></div>
+        </div>` : ''}
+      </div>`;
+    }).join('');
+
+    rows.forEach(c => {
+      const hist = uptimeMap[c.slug];
+      if (!hist) return;
+      const container = document.getElementById('bars-' + c.slug);
+      if (!container) return;
+      container.querySelectorAll('.bar').forEach((b, i) => {
+        if (hist.days[i]) attachTooltip(b, hist.days[i].date, hist.days[i].uptime_pct);
+      });
+    });
+  }
+
+  async function refresh() {
+    const [health, uptime] = await Promise.all([fetchHealth(), fetchUptime()]);
+    renderOverall(health);
+    renderComponents(health, uptime);
+    el('footer-time').textContent = new Date().toUTCString();
+  }
+
+  refresh();
+  setInterval(refresh, 30000);
+</script>
+</body>
+</html>

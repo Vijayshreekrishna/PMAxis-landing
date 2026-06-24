@@ -4,31 +4,37 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PMAxis — Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #0d0f14;
-      --surface: #151820;
-      --surface2: #1c2030;
-      --border: #252a38;
-      --accent: #4f8ef7;
-      --accent2: #7c6af7;
-      --green: #22c55e;
-      --red: #ef4444;
-      --yellow: #f59e0b;
-      --text: #e2e8f0;
-      --muted: #64748b;
-      --radius: 10px;
+      --bg:      #0A0A0A;
+      --surface: #111111;
+      --surface2:#161616;
+      --border:  #1E1E1E;
+      --accent:  #00E676;
+      --accent2: #8B5CF6;
+      --green:   #00E676;
+      --red:     #FF4444;
+      --yellow:  #F59E0B;
+      --text:    #FFFFFF;
+      --muted:   #A1A1AA;
+      --radius:  10px;
     }
 
-    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; min-height: 100vh; }
+    body { background: var(--bg); color: var(--text); font-family: 'Space Grotesk', sans-serif; font-size: 14px; min-height: 100vh; -webkit-font-smoothing: antialiased; }
 
     /* Nav */
-    .nav { display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 56px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
-    .nav-brand { font-size: 16px; font-weight: 700; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .nav-sub { font-size: 12px; color: var(--muted); margin-left: 8px; }
-    .nav-left { display: flex; align-items: baseline; gap: 4px; }
+    .nav { display: flex; align-items: center; justify-content: space-between; padding: 0 32px; height: 68px; background: var(--bg); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+    .nav-brand { font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+    .nav-divider { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
+    .nav-sub { font-size: 13px; color: var(--muted); font-weight: 400; }
+    .logo-path   { fill: #FFFFFF; }
+    .logo-center { fill: #00E676; }
+    .nav-left { display: flex; align-items: center; gap: 12px; }
 
     /* Layout */
     .page { max-width: 1200px; margin: 0 auto; padding: 24px; }
@@ -38,8 +44,8 @@
     .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
     .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px; }
     .stat-value { font-size: 28px; font-weight: 700; }
-    .stat-value.green { color: var(--green); }
-    .stat-value.blue { color: var(--accent); }
+    .stat-value.green  { color: var(--green); }
+    .stat-value.blue   { color: var(--accent); }
     .stat-value.purple { color: var(--accent2); }
 
     /* Table section */
@@ -49,7 +55,7 @@
     /* Button */
     .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; transition: opacity 0.15s; }
     .btn:hover { opacity: 0.85; }
-    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary { background: var(--accent); color: #0A0A0A; font-weight: 600; }
     .btn-danger { background: var(--red); color: #fff; }
     .btn-success { background: var(--green); color: #fff; }
     .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
@@ -65,11 +71,11 @@
 
     /* Badges */
     .badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-    .badge-green { background: rgba(34,197,94,0.15); color: var(--green); }
-    .badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
-    .badge-blue { background: rgba(79,142,247,0.15); color: var(--accent); }
-    .badge-purple { background: rgba(124,106,247,0.15); color: var(--accent2); }
-    .badge-yellow { background: rgba(245,158,11,0.15); color: var(--yellow); }
+    .badge-green  { background: rgba(0,230,118,0.12); color: var(--green); }
+    .badge-red    { background: rgba(255,68,68,0.12); color: var(--red); }
+    .badge-blue   { background: rgba(0,230,118,0.12); color: var(--accent); }
+    .badge-purple { background: rgba(139,92,246,0.15); color: var(--accent2); }
+    .badge-yellow { background: rgba(245,158,11,0.12); color: var(--yellow); }
 
     /* Progress bar */
     .progress-wrap { display: flex; align-items: center; gap: 8px; }
@@ -113,7 +119,7 @@
     .modal-field { margin-bottom: 16px; }
     .modal-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
     .modal-input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 9px 12px; border-radius: 7px; font-size: 13px; }
-    .modal-input:focus { outline: none; border-color: var(--accent); }
+    .modal-input:focus { outline: none; border-color: var(--green); }
     .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
 
     /* Token gate */
@@ -122,7 +128,7 @@
     .token-card h2 { font-size: 18px; margin-bottom: 8px; }
     .token-card p { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
     .token-input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 8px; font-size: 14px; margin-bottom: 12px; }
-    .token-input:focus { outline: none; border-color: var(--accent); }
+    .token-input:focus { outline: none; border-color: var(--green); }
 
     .empty { text-align: center; padding: 48px 24px; color: var(--muted); font-size: 13px; }
 
@@ -137,6 +143,13 @@
 <!-- Token Gate (shown if no token in localStorage) -->
 <div id="tokenGate" class="token-gate" style="display:none">
   <div class="token-card">
+    <svg width="44" height="44" viewBox="0 0 803 795" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin:0 auto 20px;display:block">
+      <path class="logo-path" d="M719.962 114.503C724.439 116.738 746.095 136.885 751.202 141.275C743.13 152.558 727.925 169.756 718.52 180.14C667.116 237.986 604.881 285.207 535.329 319.136C528.842 322.253 501.635 334.541 495.686 335.719C493.671 334.794 493.692 334.098 492.165 332.003C481.767 318.552 471.393 311.209 457.07 302.886C532.805 280.515 608.565 231.922 664.325 176.745C684.543 156.739 701.958 136.391 719.962 114.503Z"/>
+      <path class="logo-path" d="M103.731 114.306C106.532 116.771 116.373 129.166 119.413 132.747C128.996 144.095 139.01 155.071 149.433 165.651C213.595 230.118 280.396 274.662 366.923 302.87C352.429 310.952 342.084 318.858 331.657 332.058L328.841 336.043C319.39 333.204 296.981 322.854 288.065 318.523C216.559 283.785 152.851 232.607 99.9718 173.495C90.9908 163.455 80.8168 152.054 72.5908 141.466C80.8318 133.892 95.1408 120.907 103.731 114.306Z"/>
+      <path class="logo-path" d="M500.639 448.854C510.914 451.537 533.17 462.09 542.691 466.637C603.572 495.713 657.966 537.098 703.779 586.511C719.932 603.934 737.715 624.431 751.412 643.924C743.385 651.277 729.34 662.024 720.529 669.194C717.837 667.836 711.304 658.002 708.901 655.026C699.702 643.633 690.268 632.508 680.354 621.743C622.903 558.485 550.473 510.682 469.721 482.728C482.46 472.687 492.344 462.846 500.639 448.854Z"/>
+      <path class="logo-path" d="M322.57 449.109C324.527 450.34 331.226 460.882 333.985 463.96C341.099 471.897 346.509 476.457 354.784 482.779C251.686 517.317 170.299 583.28 104.517 668.566L103.202 668.709C97.76 665.303 78.849 649.187 72.52 644.052C81.2 630.876 98.635 610.478 109.165 598.717C157.332 544.918 214.867 498.845 280.012 467.285C293.255 460.869 308.655 453.904 322.57 449.109Z"/>
+      <path class="logo-center" d="M404.129 336.369C437.402 331.991 467.935 355.383 472.368 388.649C476.801 421.915 453.459 452.487 420.201 456.975C386.865 461.473 356.206 438.064 351.762 404.721C347.319 371.378 370.778 340.757 404.129 336.369Z"/>
+    </svg>
     <h2>PMAxis Admin</h2>
     <p>Enter your admin token to continue</p>
     <input id="tokenInput" class="token-input" type="password" placeholder="Admin token" />
@@ -148,7 +161,17 @@
 <div id="app" style="display:none">
   <nav class="nav">
     <div class="nav-left">
-      <span class="nav-brand">PMAxis</span>
+      <a href="/" style="display:flex;align-items:center;gap:10px;text-decoration:none;">
+        <svg width="36" height="36" viewBox="0 0 803 795" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path class="logo-path" d="M719.962 114.503C724.439 116.738 746.095 136.885 751.202 141.275C743.13 152.558 727.925 169.756 718.52 180.14C667.116 237.986 604.881 285.207 535.329 319.136C528.842 322.253 501.635 334.541 495.686 335.719C493.671 334.794 493.692 334.098 492.165 332.003C481.767 318.552 471.393 311.209 457.07 302.886C532.805 280.515 608.565 231.922 664.325 176.745C684.543 156.739 701.958 136.391 719.962 114.503Z"/>
+          <path class="logo-path" d="M103.731 114.306C106.532 116.771 116.373 129.166 119.413 132.747C128.996 144.095 139.01 155.071 149.433 165.651C213.595 230.118 280.396 274.662 366.923 302.87C352.429 310.952 342.084 318.858 331.657 332.058L328.841 336.043C319.39 333.204 296.981 322.854 288.065 318.523C216.559 283.785 152.851 232.607 99.9718 173.495C90.9908 163.455 80.8168 152.054 72.5908 141.466C80.8318 133.892 95.1408 120.907 103.731 114.306Z"/>
+          <path class="logo-path" d="M500.639 448.854C510.914 451.537 533.17 462.09 542.691 466.637C603.572 495.713 657.966 537.098 703.779 586.511C719.932 603.934 737.715 624.431 751.412 643.924C743.385 651.277 729.34 662.024 720.529 669.194C717.837 667.836 711.304 658.002 708.901 655.026C699.702 643.633 690.268 632.508 680.354 621.743C622.903 558.485 550.473 510.682 469.721 482.728C482.46 472.687 492.344 462.846 500.639 448.854Z"/>
+          <path class="logo-path" d="M322.57 449.109C324.527 450.34 331.226 460.882 333.985 463.96C341.099 471.897 346.509 476.457 354.784 482.779C251.686 517.317 170.299 583.28 104.517 668.566L103.202 668.709C97.76 665.303 78.849 649.187 72.52 644.052C81.2 630.876 98.635 610.478 109.165 598.717C157.332 544.918 214.867 498.845 280.012 467.285C293.255 460.869 308.655 453.904 322.57 449.109Z"/>
+          <path class="logo-center" d="M404.129 336.369C437.402 331.991 467.935 355.383 472.368 388.649C476.801 421.915 453.459 452.487 420.201 456.975C386.865 461.473 356.206 438.064 351.762 404.721C347.319 371.378 370.778 340.757 404.129 336.369Z"/>
+        </svg>
+        <span class="nav-brand">PMAxis</span>
+      </a>
+      <div class="nav-divider"></div>
       <span class="nav-sub">Admin Panel</span>
     </div>
     <button class="btn btn-ghost btn-sm" onclick="openCreateModal()">+ New Key</button>
@@ -431,7 +454,8 @@
         <button class="btn btn-ghost btn-sm" onclick="resetUsage('${key}')">Reset Usage</button>
         ${k.active
           ? `<button class="btn btn-danger btn-sm" onclick="revokeKey('${key}')">Revoke Key</button>`
-          : `<button class="btn btn-success btn-sm" onclick="activateKey('${key}')">Activate Key</button>`
+          : `<button class="btn btn-success btn-sm" onclick="activateKey('${key}')">Activate Key</button>
+             <button class="btn btn-sm" style="background:rgba(255,68,68,0.12);color:var(--red);border:1px solid rgba(255,68,68,0.25)" onclick="deleteKey('${key}')">Delete Permanently</button>`
         }
       </div>
     `;
@@ -459,6 +483,13 @@
     const res = await api('/keys/' + key + '/revoke', { method: 'POST' });
     if (res.ok) { toast('Key revoked', 'ok'); closePanel(); loadKeys(); loadStats(); }
     else toast('Failed to revoke', 'err');
+  }
+
+  async function deleteKey(key) {
+    if (!confirm('Permanently delete this key? This cannot be undone.')) return;
+    const res = await api('/keys/' + key, { method: 'DELETE' });
+    if (res.ok) { toast('Key deleted', 'ok'); closePanel(); loadKeys(); loadStats(); }
+    else { const d = await res.json().catch(()=>{}); toast(d?.error || 'Failed to delete', 'err'); }
   }
 
   async function activateKey(key) {
