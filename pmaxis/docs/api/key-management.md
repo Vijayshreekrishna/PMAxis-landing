@@ -16,7 +16,7 @@ This covers everything about API keys — how users get them, how you manage the
 
 ## User Flow: Getting a Key
 
-1. Developer visits `http://167.233.97.217:8088/register`
+1. Developer visits `https://api.pmaxis.trade/register` (or `http://167.233.97.217:8088/register` if nginx/SSL is not yet set up)
 2. Fills in **App Name** + **Email** (use_case optional)
 3. Clicks submit — receives a `pmx_live_...` key on screen
 4. **The key is shown once.** They must save it immediately.
@@ -79,11 +79,11 @@ Shows full key info:
 Actions available in the panel:
 | Button | What it does |
 |--------|-------------|
-| Change Tier | Upgrade/downgrade tier; takes effect on next request |
-| Set Custom Rate Limit | Override the tier default (0 = use tier default) |
+| Save Changes | Update tier / custom rate limit; takes effect on next request |
+| Reset Usage | Clears the current rate-limit window counter (does NOT reset daily/total stats) |
 | Revoke | Sets `active=false` instantly in Redis — key stops working immediately |
 | Activate | Re-enables a revoked key |
-| Reset Usage | Clears the current rate-limit window counter (does NOT reset daily/total stats) |
+| Delete Permanently | **Only visible on revoked keys.** Removes from Postgres + clears all Redis keys. Cannot be undone. |
 
 ### Creating a key manually
 Click **+ New Key** in the top-right. Fill in app name, email, tier. The full key is returned in the API response — copy it from the browser console or the toast notification.
@@ -104,12 +104,13 @@ All require `X-Debug-Token: pmaxis-debug-2026` header.
 | `GET` | `/admin/keys` | List all keys |
 | `POST` | `/admin/keys` | Create a key (any tier) |
 | `GET` | `/admin/keys/{key}` | Get key details |
-| `PATCH` | `/admin/keys/{key}` | Update tier / rate_limit / active |
+| `PUT` | `/admin/keys/{key}` | Update tier / rate_limit / active |
+| `DELETE` | `/admin/keys/{key}` | Permanently delete a revoked key |
 | `POST` | `/admin/keys/{key}/revoke` | Revoke key |
 | `POST` | `/admin/keys/{key}/activate` | Re-activate key |
+| `POST` | `/admin/keys/{key}/reset` | Clear rate-limit counter |
 | `GET` | `/admin/keys/{key}/usage` | Usage stats (current window + 7-day daily) |
-| `POST` | `/admin/keys/{key}/reset-usage` | Clear rate-limit counter |
-| `GET` | `/admin/stats` | Aggregate dashboard stats |
+| `GET` | `/admin/keys/stats` | Aggregate dashboard stats |
 
 ### Upgrade a key to Pro
 

@@ -268,19 +268,58 @@ Replace `0 * * * *` with one of these:
 
 ---
 
-## Part 8 — Uptime Kuma (Visual Status Dashboard)
+## Part 8 — Public Status Page (Built-in)
+
+PMAxis serves a public status page at `/status` that runs entirely inside `hub-api` — no external service needed.
+
+URL: `https://api.pmaxis.trade/status` (or `http://167.233.97.217:8088/status` before nginx/SSL)
+
+| Feature | Built-in `/status` |
+|---------|-------------------|
+| Live component health | ✅ |
+| 90-day uptime history per component | ✅ |
+| Auto-refresh every 30 seconds | ✅ |
+| Light/dark mode | ✅ |
+| Requires external service | ❌ |
+
+### Components tracked
+
+| Component | Slug | How determined |
+|-----------|------|---------------|
+| API | `api` | Always up if endpoint responds |
+| Redis Cache | `redis` | `PING` command |
+| ClickHouse | `clickhouse` | `SELECT 1` |
+| Postgres | `postgres` | `Ping()` |
+| Data Pipeline | `pipeline` | `SELECT max(timestamp) FROM trades` |
+
+### How uptime is recorded
+
+A background goroutine in `hub-api` runs `checkComponents()` every 5 minutes and writes to Redis sorted sets:
+
+```
+Key:    pmaxis:uptime:{slug}
+Member: {unix_ts}:{0|1}     (1 = up, 0 = down)
+Score:  unix_ts
+```
+
+Entries older than 90 days are pruned automatically on each write. The status page fetches `/viz/data/uptime` which aggregates these into daily uptime percentages for the timeline bars.
+
+---
+
+## Part 9 — Uptime Kuma (Visual Status Dashboard)
 
 In addition to the cron script, PMAxis runs **Uptime Kuma** — a self-hosted visual monitoring dashboard at `http://167.233.97.217:3001`.
 
-| Feature | Cron Script | Uptime Kuma |
-|---|---|---|
-| OS metrics (disk, RAM, swap) | ✅ | ❌ |
-| Per-service uptime monitoring | ❌ | ✅ |
-| Response-time graphs & history | ❌ | ✅ |
-| Public status page | ❌ | ✅ |
-| Discord alerts | ✅ | ✅ |
+| Feature | Cron Script | Uptime Kuma | Built-in `/status` |
+|---|---|---|---|
+| OS metrics (disk, RAM, swap) | ✅ | ❌ | ❌ |
+| Per-service uptime monitoring | ❌ | ✅ | ✅ |
+| 90-day history | ❌ | ✅ | ✅ |
+| Public status page | ❌ | ✅ | ✅ |
+| Discord alerts | ✅ | ✅ | ❌ |
+| Requires extra container | ❌ | ✅ | ❌ |
 
-Both systems run independently and complement each other.
+All three systems run independently and complement each other.
 
 Full setup guide: [uptime-kuma.md](uptime-kuma.md)
 
@@ -289,5 +328,6 @@ Full setup guide: [uptime-kuma.md](uptime-kuma.md)
 ## Related Docs
 
 - [uptime-kuma.md](uptime-kuma.md) — Uptime Kuma setup, monitors, and status page
+- [../frontend/pages.md](../frontend/pages.md) — All embedded pages including /status design details
 - [vps-deploy.md](vps-deploy.md) — Full VPS deployment guide including stability fixes
 - [troubleshooting.md](troubleshooting.md) — Common errors and how to fix them
